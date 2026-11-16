@@ -1,0 +1,121 @@
+// All SQL lives here. Functions return shared types, never raw rows.
+import type { Contact, NewOrder, Order, OrderItem, Product } from '../shared/types.ts';
+import { db, tx } from './db.ts';
+
+type Row = Record<string, any>;
+
+const toProduct = (r: Row): Product => ({
+  id: r.id,
+  name: r.name,
+  price: r.price,
+  image: `/uploads/${r.image}`,
+});
+
+const toItem = (r: Row): OrderItem => ({
+  productId: r.product_id,
+  name: r.name,
+  price: r.price,
+  qty: r.qty,
+});
+
+const toOrder = (r: Row): Order => ({
+  id: r.id,
+  userId: r.user_id,
+  name: r.name,
+  phone: r.phone,
+  address: r.address,
+  total: r.total,
+  paidAt: r.paid_at,
+  createdAt: r.created_at,
+  items: (db.prepare('SELECT * FROM order_items WHERE order_id = ? ORDER BY rowid').all(r.id) as Row[]).map(toItem),
+});
+
+/** Thrown for problems the user can fix; the API returns it as 400 with this message. */
+export class UserError extends Error {}
+
+// ---------- products ----------
+
+export function listProducts(): Product[] {
+  return (db.prepare('SELECT * FROM products ORDER BY id').all() as Row[]).map(toProduct);
+}
+
+export function getProduct(id: number): (Product & { imageFile: string }) | null {
+  const r = db.prepare('SELECT * FROM products WHERE id = ?').get(id) as Row | undefined;
+  return r ? { ...toProduct(r), imageFile: r.image } : null;
+}
+
+export function createProduct(p: { name: string; price: number; imageFile: string }): Product {
+  const { lastInsertRowid } = db
+    .prepare('INSERT INTO products (name, price, image, created_at) VALUES (?, ?, ?, ?)')
+    .run(p.name, p.price, p.imageFile, new Date().toISOString());
+  return getProduct(Number(lastInsertRowid))!;
+}
+
+export function updateProduct(id: number, p: { name: string; price: number; imageFile: string }): Product {
+  db.prepare('UPDATE products SET name = ?, price = ?, image = ? WHERE id = ?').run(p.name, p.price, p.imageFile, id);
+  return getProduct(id)!;
+}
+
+export function deleteProduct(id: number): void {
+  db.prepare('DELETE FROM products WHERE id = ?').run(id);
+}
+
+// ---------- orders ----------
+
+export function createOrder(userId: number, input: NewOrder): Order {
+  return tx(() => {
+    const items = input.items.map(({ productId, qty }) => {
+      const p = getProduct(productId);
+      if (!p) throw new UserError("Savatdagi mahsulot endi mavjud emas. Savatni yangilang.");
+      return { productId, name: p.name, price: p.price, qty };
+    });
+    const total = items.reduce((sum, i) => sum + i.price * i.qty, 0);
+
+    const { lastInsertRowid } = db
+      .prepare('INSERT INTO orders (user_id, name, phone, address, total, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(userId, input.name, input.phone, input.address, total, new Date().toISOString());
+    const orderId = Number(lastInsertRowid);
+
+    const insertItem = db.prepare('INSERT INTO order_items (order_id, product_id, name, price, qty) VALUES (?, ?, ?, ?, ?)');
+    for (const i of items) insertItem.run(orderId, i.productId, i.name, i.price, i.qty);
+
+    return getOrder(orderId)!;
+  });
+}
+
+export function getOrder(id: number): Order | null {
+  const r = db.prepare('SELECT * FROM orders WHERE id = ?').get(id) as Row | undefined;
+  return r ? toOrder(r) : null;
+}
+
+export function listUserOrders(userId: number): Order[] {
+  return (db.prepare('SELECT * FROM orders WHERE user_id = ? ORDER BY id DESC').all(userId) as Row[]).map(toOrder);
+}
+
+/** Every unpaid order, then the most recent paid ones. */
+export function listAdminOrders(paidLimit = 50): Order[] {
+  const unpaid = db.prepare('SELECT * FROM orders WHERE paid_at IS NULL ORDER BY id DESC').all() as Row[];
+  const paid = db.prepare('SELECT * FROM orders WHERE paid_at IS NOT NULL ORDER BY id DESC LIMIT ?').all(paidLimit) as Row[];
+  return [...unpaid, ...paid].map(toOrder);
+}
+
+export function setOrderPaid(id: number, paid: boolean): Order | null {
+  db.prepare('UPDATE orders SET paid_at = ? WHERE id = ?').run(paid ? new Date().toISOString() : null, id);
+  return getOrder(id);
+}
+
+export function setOrderMessageId(id: number, messageId: number): void {
+  db.prepare('UPDATE orders SET tg_message_id = ? WHERE id = ?').run(messageId, id);
+}
+
+export function getOrderMessageId(id: number): number | null {
+  const r = db.prepare('SELECT tg_message_id FROM orders WHERE id = ?').get(id) as Row | undefined;
+  return r?.tg_message_id ?? null;
+}
+
+export function userStats(userId: number): { ordersCount: number; contact: Contact | null } {
+  const r = db
+    .prepare('SELECT name, phone, address, (SELECT COUNT(*) FROM orders WHERE user_id = ?) AS n FROM orders WHERE user_id = ? ORDER BY id DESC LIMIT 1')
+    .get(userId, userId) as Row | undefined;
+  return r ? { ordersCount: r.n, contact: { name: r.name, phone: r.phone, address: r.address } } : { ordersCount: 0, contact: null };
+}

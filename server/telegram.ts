@@ -1,0 +1,62 @@
+// Outgoing Telegram Bot API calls. The bot never receives updates (no webhook, no polling).
+import type { Order } from '../shared/types.ts';
+import { env } from './env.ts';
+import { getOrderMessageId, setOrderMessageId } from './store.ts';
+
+export async function botApi<T = any>(method: string, body: object): Promise<T> {
+  const res = await fetch(`https://api.telegram.org/bot${env.botToken}/${method}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const json = (await res.json()) as { ok: boolean; result: T; description?: string };
+  if (!json.ok) throw new Error(`Telegram ${method}: ${json.description}`);
+  return json.result;
+}
+
+const enabled = () => Boolean(env.botToken && env.groupId);
+
+/** Posts a new order to the orders group and remembers the message id. */
+export async function announceOrder(order: Order): Promise<void> {
+  if (!enabled()) return console.log(`[telegram] disabled, skipped announcing order #${order.id}`);
+  const msg = await botApi<{ message_id: number }>('sendMessage', { chat_id: env.groupId, ...orderMessage(order) });
+  setOrderMessageId(order.id, msg.message_id);
+}
+
+/** Re-renders the group message after the order changed (e.g. marked as paid). */
+export async function refreshOrderMessage(order: Order): Promise<void> {
+  const messageId = getOrderMessageId(order.id);
+  if (!enabled() || !messageId) return;
+  try {
+    await botApi('editMessageText', { chat_id: env.groupId, message_id: messageId, ...orderMessage(order) });
+  } catch (e) {
+    if (!String(e).includes('message is not modified')) throw e;
+  }
+}
+
+function orderMessage(order: Order) {
+  const status = order.paidAt ? "✅ To'langan" : "🟡 To'lanmagan";
+  const lines = [
+    `<b>Buyurtma #${order.id}</b> · ${money(order.total)}`,
+    status,
+    '',
+    ...order.items.map((i) => `${esc(i.name)} × ${i.qty} = ${money(i.price * i.qty)}`),
+    '',
+    `<a href="tg://user?id=${order.userId}">${esc(order.name)}</a>`,
+    esc(order.phone),
+    esc(order.address),
+  ];
+  return {
+    text: lines.join('\n'),
+    parse_mode: 'HTML',
+    link_preview_options: { is_disabled: true },
+    // web_app buttons are not allowed in groups, so this is a t.me link with a start parameter.
+    // The web app reads it from initDataUnsafe.start_param and opens /orders/:id.
+    reply_markup: env.appLink
+      ? { inline_keyboard: [[{ text: 'Ochish', url: `${env.appLink}?startapp=order_${order.id}` }]] }
+      : undefined,
+  };
+}
+
+const money = (n: number) => `${n.toLocaleString('en-US').replaceAll(',', ' ')} so'm`;
+const esc = (s: string) => s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');

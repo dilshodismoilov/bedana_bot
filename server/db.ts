@@ -1,0 +1,64 @@
+import { DatabaseSync } from 'node:sqlite';
+import { mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { env } from './env.ts';
+
+export const uploadsDir = join(env.dataDir, 'uploads');
+mkdirSync(uploadsDir, { recursive: true });
+
+export const db = new DatabaseSync(join(env.dataDir, 'shop.db'));
+db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
+
+// Append-only list. Never edit an entry that has shipped; add a new one instead.
+// PRAGMA user_version stores how many have been applied.
+const migrations = [
+  `
+  CREATE TABLE products (
+    id         INTEGER PRIMARY KEY,
+    name       TEXT    NOT NULL,
+    price      INTEGER NOT NULL,
+    image      TEXT    NOT NULL, -- file name inside DATA_DIR/uploads
+    created_at TEXT    NOT NULL
+  );
+  CREATE TABLE orders (
+    id            INTEGER PRIMARY KEY,
+    user_id       INTEGER NOT NULL,
+    name          TEXT    NOT NULL,
+    phone         TEXT    NOT NULL,
+    address       TEXT    NOT NULL,
+    total         INTEGER NOT NULL,
+    paid_at       TEXT,
+    tg_message_id INTEGER, -- message in the orders group, edited when payment status changes
+    created_at    TEXT    NOT NULL
+  );
+  CREATE INDEX orders_user ON orders(user_id);
+  CREATE TABLE order_items (
+    order_id   INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
+    name       TEXT    NOT NULL,
+    price      INTEGER NOT NULL,
+    qty        INTEGER NOT NULL
+  );
+  CREATE INDEX order_items_order ON order_items(order_id);
+  `,
+];
+
+const { user_version } = db.prepare('PRAGMA user_version').get() as { user_version: number };
+for (let v = user_version; v < migrations.length; v++) {
+  tx(() => {
+    db.exec(migrations[v]);
+    db.exec(`PRAGMA user_version = ${v + 1}`);
+  });
+}
+
+export function tx<T>(fn: () => T): T {
+  db.exec('BEGIN');
+  try {
+    const result = fn();
+    db.exec('COMMIT');
+    return result;
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
+}

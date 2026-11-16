@@ -1,0 +1,429 @@
+/* Colors come from the Telegram theme (--tg-theme-*), so the app matches the user's light/dark Telegram.
+   The fallbacks are only used in a plain browser during development. */
+:root {
+  --bg: var(--tg-theme-secondary-bg-color, #efeff4);
+  --card: var(--tg-theme-section-bg-color, var(--tg-theme-bg-color, #fff));
+  --text: var(--tg-theme-text-color, #000);
+  --hint: var(--tg-theme-hint-color, #8e8e93);
+  --accent: var(--tg-theme-button-color, #2481cc);
+  --accent-text: var(--tg-theme-button-text-color, #fff);
+  --link: var(--tg-theme-link-color, #2481cc);
+  --danger: var(--tg-theme-destructive-text-color, #e53935);
+  --separator: var(--tg-theme-section-separator-color, rgba(128, 128, 128, 0.2));
+  --tint: color-mix(in srgb, var(--accent) 12%, transparent);
+  --paid: #2fa84f;
+  --unpaid: #e8a10c;
+  --radius: 14px;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([style*='--tg-theme']) {
+    --bg: #0f0f10;
+    --card: #1c1c1e;
+    --text: #fff;
+  }
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.35 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img {
+  display: block;
+}
+
+h1 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 12px 12px calc(24px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.muted {
+  color: var(--hint);
+  font-size: 14px;
+}
+
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.icon {
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+
+.icon-button {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--card);
+  color: var(--accent);
+}
+
+.toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.back-fallback {
+  align-self: flex-start;
+}
+
+.status {
+  min-height: 40vh;
+  display: grid;
+  place-items: center;
+  color: var(--hint);
+  text-align: center;
+  padding: 24px;
+}
+
+/* ---------- catalog ---------- */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.product {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 10px;
+}
+
+.product img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  background: var(--tint);
+}
+
+.product-name {
+  padding: 8px 10px 0;
+  font-weight: 500;
+  flex: 1;
+}
+
+.product-price {
+  padding: 2px 10px 10px;
+  color: var(--hint);
+  font-size: 14px;
+}
+
+.product .add-button,
+.product .stepper {
+  margin: 0 10px;
+}
+
+.add-button {
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--tint);
+  color: var(--accent);
+}
+
+.stepper {
+  height: 36px;
+  display: flex;
+  align-items: center;
+  border-radius: 10px;
+  background: var(--tint);
+  color: var(--accent);
+}
+
+.stepper button {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  color: inherit;
+}
+
+.stepper input {
+  flex: 1;
+  width: 0;
+  min-width: 36px;
+  border: 0;
+  background: none;
+  text-align: center;
+  font-weight: 600;
+  color: var(--text);
+  outline: none;
+}
+
+.row .stepper {
+  width: 120px;
+}
+
+/* ---------- lists ---------- */
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  min-height: 48px;
+}
+
+.list > .row + .row {
+  border-top: 1px solid var(--separator);
+}
+
+.row-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.row-end {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.row .icon {
+  color: var(--hint);
+}
+
+.row.total {
+  font-weight: 600;
+  font-size: 18px;
+}
+
+.row.link {
+  color: var(--link);
+}
+
+.row.pre {
+  white-space: pre-wrap;
+}
+
+.thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  object-fit: cover;
+  background: var(--tint);
+}
+
+.badge {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.badge-paid {
+  color: var(--paid);
+  background: color-mix(in srgb, var(--paid) 14%, transparent);
+}
+
+.badge-unpaid {
+  color: var(--unpaid);
+  background: color-mix(in srgb, var(--unpaid) 16%, transparent);
+}
+
+.order-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px;
+}
+
+/* ---------- forms ---------- */
+
+.fields > input,
+.fields > textarea,
+.suffix-field {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: none;
+  padding: 14px;
+  outline: none;
+  resize: none;
+}
+
+.fields > * + * {
+  border-top: 1px solid var(--separator) !important;
+}
+
+.suffix-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.suffix-field input {
+  flex: 1;
+  border: 0;
+  background: none;
+  outline: none;
+  padding: 0;
+}
+
+::placeholder {
+  color: var(--hint);
+}
+
+.invalid,
+.invalid::placeholder,
+.invalid input::placeholder {
+  color: var(--danger);
+}
+
+.invalid {
+  animation: shake 0.3s;
+}
+
+@keyframes shake {
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+.image-picker {
+  width: min(100%, 280px);
+  aspect-ratio: 1;
+  align-self: center;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--card);
+  color: var(--hint);
+  display: grid;
+  place-items: center;
+}
+
+.image-picker img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.image-picker .icon {
+  width: 48px;
+  height: 48px;
+}
+
+.image-picker.invalid {
+  color: var(--danger);
+  outline: 2px solid var(--danger);
+}
+
+.segmented {
+  display: flex;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--card);
+}
+
+.segmented a {
+  flex: 1;
+  text-align: center;
+  padding: 7px;
+  border-radius: 8px;
+  color: var(--hint);
+  font-weight: 500;
+}
+
+.segmented a.active {
+  background: var(--tint);
+  color: var(--accent);
+}
+
+.text-button {
+  padding: 14px;
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--link);
+}
+
+.text-button.danger {
+  color: var(--danger);
+}
+
+/* ---------- browser fallback for Telegram's MainButton ---------- */
+
+.main-button-bar {
+  height: 72px;
+}
+
+.main-button-bar .main-button {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  max-width: 616px;
+  margin: 0 auto;
+  height: 50px;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+  display: grid;
+  place-items: center;
+}
+
+.main-button:disabled {
+  opacity: 0.7;
+}
+
+.spinner {
+  width: 22px;
+  height: 22px;
+  border: 2.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

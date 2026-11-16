@@ -1,0 +1,5 @@
+# /etc/caddy/Caddyfile — Caddy obtains and renews the HTTPS certificate automatically.
+shop.example.com {
+	encode gzip
+	reverse_proxy localhost:3000
+}
