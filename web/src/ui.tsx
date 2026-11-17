@@ -1,7 +1,7 @@
 // Shared UI pieces. MainButton/BackButton drive Telegram's native controls inside Telegram
 // and render HTML fallbacks in a regular browser, so pages never branch on the environment.
 import type { ComponentChildren } from 'preact';
-import { useEffect, useRef } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { useLocation } from 'wouter-preact';
 import { haptic, inTelegram, tg } from './tg.ts';
 
@@ -68,26 +68,54 @@ export function BackButton({ to }: { to: string }) {
   );
 }
 
-export function Stepper({ qty, onChange }: { qty: number; onChange: (qty: number) => void }) {
-  const set = (n: number) => {
+const MAX_QTY = 100_000; // same limit as the server
+
+/**
+ * Quantity entry for orders of any size: type a number, confirm with the button (or the keyboard's Enter).
+ * Confirming 0 or an empty field removes the item. The button is highlighted while the typed number
+ * differs from the cart, and shows ✓ once they match.
+ */
+export function QtyInput({ qty, onSubmit }: { qty: number; onSubmit: (qty: number) => void }) {
+  const [value, setValue] = useState(qty ? String(qty) : '');
+  const input = useRef<HTMLInputElement>(null);
+
+  useEffect(() => setValue(qty ? String(qty) : ''), [qty]);
+
+  const typed = Number(value || 0);
+  const dirty = typed !== qty;
+
+  function submit(e: Event) {
+    e.preventDefault();
+    if (!dirty) {
+      if (!qty) input.current?.focus(); // nothing typed yet: start typing
+      return;
+    }
     haptic.tap();
-    onChange(Math.max(0, Math.min(100_000, n)));
-  };
+    onSubmit(typed);
+    input.current?.blur(); // close the keyboard so the cart button is visible
+  }
+
   return (
-    <div class="stepper">
-      <button onClick={() => set(qty - 1)} aria-label="Kamaytirish">
-        <Icon name="minus" />
-      </button>
+    <form class={`qty ${dirty ? 'dirty' : ''}`} onSubmit={submit}>
       <input
+        ref={input}
         inputMode="numeric"
-        value={qty}
-        onFocus={(e) => e.currentTarget.select()}
-        onChange={(e) => set(parseInt(e.currentTarget.value, 10) || 0)}
+        pattern="[0-9]*"
+        enterKeyHint="done"
+        placeholder="0"
+        aria-label="Miqdor"
+        value={value}
+        onInput={(e) => {
+          const digits = e.currentTarget.value.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+          const next = digits && String(Math.min(Number(digits), MAX_QTY));
+          e.currentTarget.value = next; // keep the field in sync even when the state value doesn't change
+          setValue(next);
+        }}
       />
-      <button onClick={() => set(qty + 1)} aria-label="Ko'paytirish">
-        <Icon name="plus" />
+      <button type="submit" aria-label={qty ? 'Saqlash' : "Savatga qo'shish"}>
+        <Icon name={qty && !dirty ? 'check' : 'plus'} />
       </button>
-    </div>
+    </form>
   );
 }
 
@@ -108,7 +136,7 @@ export function Status({ error, children }: { error?: string; children?: Compone
 
 const paths = {
   plus: 'M12 5v14M5 12h14',
-  minus: 'M5 12h14',
+  check: 'M5 12.5l4.5 4.5L19 7.5',
   back: 'M15 18l-6-6 6-6',
   receipt: 'M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6',
   settings: 'M4 6h16M4 12h16M4 18h16M8 4v4M16 10v4M10 16v4',

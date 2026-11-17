@@ -159,51 +159,51 @@ h1 {
   font-size: 14px;
 }
 
-.product .add-button,
-.product .stepper {
+/* Quantity: number field + confirm button. */
+.qty {
+  display: flex;
+  gap: 6px;
+  height: 38px;
+}
+
+.product .qty {
   margin: 0 10px;
 }
 
-.add-button {
-  height: 36px;
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-  background: var(--tint);
-  color: var(--accent);
+.row .qty {
+  width: 132px;
+  flex: none;
 }
 
-.stepper {
-  height: 36px;
-  display: flex;
-  align-items: center;
-  border-radius: 10px;
-  background: var(--tint);
-  color: var(--accent);
-}
-
-.stepper button {
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  color: inherit;
-}
-
-.stepper input {
+.qty input {
   flex: 1;
   width: 0;
-  min-width: 36px;
   border: 0;
-  background: none;
+  border-radius: 10px;
+  background: var(--tint);
   text-align: center;
   font-weight: 600;
-  color: var(--text);
   outline: none;
 }
 
-.row .stepper {
-  width: 120px;
+.qty input:focus {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.qty button {
+  width: 38px;
+  flex: none;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--tint);
+  color: var(--accent);
+}
+
+/* Typed but not confirmed yet: the button asks to be pressed. */
+.qty.dirty button {
+  background: var(--accent);
+  color: var(--accent-text);
 }
 
 /* ---------- lists ---------- */
@@ -234,7 +234,7 @@ h1 {
   white-space: nowrap;
 }
 
-.row .icon {
+.row > .icon {
   color: var(--hint);
 }
 
