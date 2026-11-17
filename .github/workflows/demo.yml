@@ -1,8 +1,9 @@
 # Temporary demo hosting until the VPS is ready: runs the shop on a GitHub runner for a few hours
-# and exposes it at your domain through a Cloudflare Tunnel.
+# and exposes it through a Cloudflare Tunnel: a random https://….trycloudflare.com address (posted to the
+# orders group each run), or your own domain if the CLOUDFLARE_TUNNEL_TOKEN secret is set.
 # Start it from the Actions tab → "Demo server" → Run workflow. Starting a new run stops the old one.
 #
-# Repository secrets: BOT_TOKEN, GROUP_ID, APP_LINK, CLOUDFLARE_TUNNEL_TOKEN.
+# Repository secrets: BOT_TOKEN, GROUP_ID, APP_LINK, and optionally CLOUDFLARE_TUNNEL_TOKEN.
 # Data (products, orders, images) is saved to the Actions cache when a run ends and restored by the next run.
 
 name: Demo server
@@ -60,9 +61,29 @@ jobs:
           minutes=$(( MINUTES > 330 ? 330 : MINUTES ))
           npm start &
           server=$!
-          cloudflared tunnel --no-autoupdate run --token "$CLOUDFLARE_TUNNEL_TOKEN" &
-          tunnel=$!
-          echo "Online for $minutes minutes" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -n "$CLOUDFLARE_TUNNEL_TOKEN" ]; then
+            # Your domain (named tunnel; hostname configured in Cloudflare).
+            cloudflared tunnel --no-autoupdate run --token "$CLOUDFLARE_TUNNEL_TOKEN" &
+            tunnel=$!
+            url="your Cloudflare tunnel hostname"
+          else
+            # Random https://….trycloudflare.com address, new on every run.
+            cloudflared tunnel --no-autoupdate --url http://localhost:3000 > tunnel.log 2>&1 &
+            tunnel=$!
+            for _ in $(seq 60); do
+              url=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' tunnel.log | head -1)
+              [ -n "$url" ] && break
+              sleep 1
+            done
+            [ -n "$url" ] || { cat tunnel.log; echo "::error::Tunnel did not start"; exit 1; }
+            # Post the address to the orders group: it must be set as the Mini App URL in BotFather.
+            curl -fsS -o /dev/null "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+              --data-urlencode "chat_id=${GROUP_ID}" \
+              --data-urlencode "text=🟢 Demo ${minutes} daqiqa ishlaydi: ${url}" \
+              || echo "::warning::Could not post the URL to the group"
+          fi
+          echo "Online for $minutes minutes at $url" >> "$GITHUB_STEP_SUMMARY"
           # Stop early if either process dies, so the run fails visibly instead of idling.
           end=$(( $(date +%s) + minutes * 60 ))
           while [ "$(date +%s)" -lt "$end" ]; do
