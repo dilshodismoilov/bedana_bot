@@ -49,8 +49,10 @@ export function AdminProducts() {
       <AdminTabs />
       {!products.data ? (
         <Status error={products.error} />
+      ) : products.data.length === 0 ? (
+        <Status>Mahsulotlar yo'q</Status>
       ) : (
-        products.data.length > 0 && (
+        (
           <section class="card list">
             {products.data.map((p) => (
               <Link key={p.id} href={`/admin/products/${p.id}`} class="row">

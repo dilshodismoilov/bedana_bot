@@ -154,6 +154,7 @@ export function Status({ error, children }: { error?: string; children?: Compone
 
 const paths = {
   plus: 'M12 5v14M5 12h14',
+  box: 'M3 7.5L12 3l9 4.5v9L12 21l-9-4.5zM3 7.5L12 12l9-4.5M12 12v9',
   check: 'M5 12.5l4.5 4.5L19 7.5',
   back: 'M15 18l-6-6 6-6',
   receipt: 'M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6',

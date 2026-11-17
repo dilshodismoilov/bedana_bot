@@ -21,7 +21,7 @@ server/
 web/src/
   app.tsx            all routes
   pages/             one file per screen; each page fetches its own data
-  ui.tsx             MainButton, BackButton, Stepper, Status, Icon
+  ui.tsx             MainButton, BackButton, QtyInput, Status, Icon
   tg.ts              Telegram WebApp SDK wrapper (haptics, confirm, deep link, device location)
   map.tsx            delivery-location map: picker at checkout, preview on orders (Leaflet, lazy-loaded)
   api.ts             fetch wrapper + useApi (stale-while-revalidate cache)
