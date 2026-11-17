@@ -1,7 +1,7 @@
 // Shared UI pieces. MainButton/BackButton drive Telegram's native controls inside Telegram
 // and render HTML fallbacks in a regular browser, so pages never branch on the environment.
 import type { ComponentChildren } from 'preact';
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { useLocation } from 'wouter-preact';
 import type { Order } from '../../shared/types.ts';
 import { money } from './format.ts';
@@ -26,7 +26,10 @@ function NativeMainButton({ text, onClick, loading = false, disabled = false }: 
     };
   }, []);
 
-  useEffect(() => {
+  // Layout effect: runs right after the render. A plain useEffect waits for the next frame, and inside
+  // Telegram (keyboard open) that could be postponed until the next render, so the button lagged one step
+  // behind the typed quantity.
+  useLayoutEffect(() => {
     tg.MainButton.setParams({ text, is_visible: true, is_active: !disabled && !loading });
     if (loading) tg.MainButton.showProgress(false);
     else tg.MainButton.hideProgress();
