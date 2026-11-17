@@ -38,6 +38,16 @@ To act as a specific user, open `http://localhost:5173/?as=<telegram user id>`. 
 
 The server starts without `GROUP_ID`, so step 3 works on a fresh install; until it's set, orders aren't posted anywhere. Only one process can receive the bot's commands at a time. Don't run a local dev server with the production bot token while the VPS is running.
 
+## Temporary demo on GitHub Actions
+
+Until a server is available, [.github/workflows/demo.yml](.github/workflows/demo.yml) runs the shop on a GitHub runner for up to 5½ hours per run. A Cloudflare Tunnel exposes it at your domain. This is a stopgap: GitHub's terms don't allow Actions as permanent hosting.
+
+1. **Cloudflare:** add your domain to Cloudflare (free plan) and switch its nameservers at your registrar. In *Zero Trust → Networks → Tunnels*, create a tunnel, add a public hostname (e.g. ) pointing to , and copy the tunnel token.
+2. **Secrets** (repo *Settings → Secrets and variables → Actions*): , , , .
+3. **Run:** *Actions → Demo server → Run workflow*. Set the BotFather Mini App URL to  (once).
+
+Products and orders are saved to the Actions cache when a run ends and restored by the next run. Starting a new run stops the current one. Don't run a local server with the same bot token at the same time.
+
 ## Deploy (Ubuntu)
 
 ```bash

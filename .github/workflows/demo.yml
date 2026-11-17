@@ -1,0 +1,81 @@
+# Temporary demo hosting until the VPS is ready: runs the shop on a GitHub runner for a few hours
+# and exposes it at your domain through a Cloudflare Tunnel.
+# Start it from the Actions tab → "Demo server" → Run workflow. Starting a new run stops the old one.
+#
+# Repository secrets: BOT_TOKEN, GROUP_ID, APP_LINK, CLOUDFLARE_TUNNEL_TOKEN.
+# Data (products, orders, images) is saved to the Actions cache when a run ends and restored by the next run.
+
+name: Demo server
+
+on:
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: How long to keep the shop online (max 330)
+        default: '330'
+
+# One server at a time: two copies would fight over the bot's messages.
+concurrency:
+  group: demo-server
+  cancel-in-progress: true
+
+jobs:
+  serve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350 # GitHub's hard limit is 360; leaves time to save data
+    env:
+      CLOUDFLARED_VERSION: 2026.11.0
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci && npm run build
+
+      - name: Restore data from the previous run
+        uses: actions/cache/restore@v6
+        with:
+          path: data
+          key: demo-data-${{ github.run_id }}
+          restore-keys: demo-data-
+
+      - name: Install cloudflared
+        run: |
+          curl -fsSL -o cloudflared.deb "https://github.com/cloudflare/cloudflared/releases/download/${CLOUDFLARED_VERSION}/cloudflared-linux-amd64.deb"
+          sudo dpkg -i cloudflared.deb
+
+      - name: Serve
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          GROUP_ID: ${{ secrets.GROUP_ID }}
+          APP_LINK: ${{ secrets.APP_LINK }}
+          CLOUDFLARE_TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
+          MINUTES: ${{ inputs.minutes }}
+          DEV: '0'
+          API_PORT: '3000'
+        run: |
+          minutes=$(( MINUTES > 330 ? 330 : MINUTES ))
+          npm start &
+          server=$!
+          cloudflared tunnel --no-autoupdate run --token "$CLOUDFLARE_TUNNEL_TOKEN" &
+          tunnel=$!
+          echo "Online for $minutes minutes" >> "$GITHUB_STEP_SUMMARY"
+          # Stop early if either process dies, so the run fails visibly instead of idling.
+          end=$(( $(date +%s) + minutes * 60 ))
+          while [ "$(date +%s)" -lt "$end" ]; do
+            kill -0 "$server" 2>/dev/null || { echo "::error::Server stopped"; exit 1; }
+            kill -0 "$tunnel" 2>/dev/null || { echo "::error::Tunnel stopped"; exit 1; }
+            sleep 15
+          done
+          kill "$tunnel" "$server"
+          wait "$server" || true
+
+      - name: Save data for the next run
+        if: always()
+        uses: actions/cache/save@v6
+        with:
+          path: data
+          key: demo-data-${{ github.run_id }}
