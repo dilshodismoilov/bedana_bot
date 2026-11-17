@@ -23,6 +23,7 @@ web/src/
   pages/             one file per screen; each page fetches its own data
   ui.tsx             MainButton, BackButton, QtyInput, Status, Icon
   tg.ts              Telegram WebApp SDK wrapper (haptics, confirm, deep link, device location)
+  crop.tsx           product photo frame: drag/pinch to crop, exports the square JPEG that is uploaded
   map.tsx            delivery-location map: picker at checkout, preview on orders (Leaflet, lazy-loaded)
   api.ts             fetch wrapper + useApi (stale-while-revalidate cache)
   cart.ts            cart and checkout draft (signals, persisted to localStorage)
