@@ -14,8 +14,10 @@ server/
   db.ts              connection + append-only migrations (PRAGMA user_version)
   auth.ts            Telegram initData verification; admin = member of the orders group
   telegram.ts        outgoing Bot API calls: group order message and its edits
+  bot.ts             incoming bot commands via long polling (/here replies with the chat id)
   env.ts             config from env vars
   api.test.ts        end-to-end API tests (temp DB, DEV mode)
+  bot.test.ts        command parsing
 web/src/
   app.tsx            all routes
   pages/             one file per screen; each page fetches its own data
@@ -53,4 +55,5 @@ For UI changes, check the affected screens in a mobile-sized browser viewport, i
 - **Deep link:** the group message button opens `APP_LINK?startapp=order_<id>`. `main.tsx` turns that into the `/orders/<id>` route.
 - **Ports:** the server reads `API_PORT`, not `PORT`, because dev tools often inject `PORT` for themselves. Vite is pinned to 5173 with `strictPort`.
 - **Delivery location** is a map pin (`location: {lat, lng}`), not an address. Map tiles come from OpenStreetMap's public tile server, which is fine for a small shop; if traffic grows, switch the tile URL in `map.tsx` to a paid provider. The group gets a native Telegram location message as a reply to each order.
+- **Bot commands:** add a handler in `bot.ts` `handle()`. Polling starts from `main.ts` only, so tests never talk to Telegram. One poller per bot token: a second process gets "Conflict" errors.
 - **Telegram limits:** `web_app` inline buttons don't work in groups, which is why the group message uses a `t.me` URL button.

@@ -1,4 +1,4 @@
-// Outgoing Telegram Bot API calls. The bot never receives updates (no webhook, no polling).
+// Outgoing Telegram Bot API calls. Incoming commands (e.g. /here) are handled in bot.ts.
 import type { Order } from '../shared/types.ts';
 import { env } from './env.ts';
 import { getOrderMessageId, setOrderMessageId } from './store.ts';

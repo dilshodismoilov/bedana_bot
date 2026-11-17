@@ -32,10 +32,11 @@ To act as a specific user, open `http://localhost:5173/?as=<telegram user id>`. 
 ## Telegram setup
 
 1. **Bot.** In [@BotFather](https://t.me/BotFather), use `/newbot` and copy the token into `BOT_TOKEN`.
-2. **Mini App.** In BotFather, use `/newapp`, choose the bot, and set the URL to `https://your-domain`. Pick a short name such as `shop`. Then set `APP_LINK=https://t.me/<bot_username>/shop`.
-   Also set *Bot Settings → Menu Button* to the same URL, so customers can open the shop from the bot chat.
-3. **Orders group.** Create a private group, add the bot, and send any message. Open `https://api.telegram.org/bot<BOT_TOKEN>/getUpdates` and copy `chat.id` (a negative number) into `GROUP_ID`.
-   The bot never reads updates itself, so this URL is safe to use.
+2. **Mini App.** In BotFather: */mybots → your bot → Bot Settings → Configure Mini App → Enable Mini App*. Set the URL to `https://your-domain` and the screen mode to **Fullsize**. Then set `APP_LINK=https://t.me/<bot_username>`.
+3. **Orders group.** Create a private group and add the bot. With the server running, send `/here` in the group, and the bot replies with `GROUP_ID=…`. Put that line in `.env` and restart the server. The bot answers ✅ to `/here` once the group is connected.
+   Every member of this group is a shop admin.
+
+The server starts without `GROUP_ID`, so step 3 works on a fresh install; until it's set, orders aren't posted anywhere. Only one process can receive the bot's commands at a time. Don't run a local dev server with the production bot token while the VPS is running.
 
 ## Deploy (Ubuntu)
 

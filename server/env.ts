@@ -13,6 +13,9 @@ export const env = {
 };
 
 if (!dev) {
-  const missing = (['BOT_TOKEN', 'GROUP_ID', 'APP_LINK'] as const).filter((k) => !process.env[k]);
+  const missing = (['BOT_TOKEN', 'APP_LINK'] as const).filter((k) => !process.env[k]);
   if (missing.length) throw new Error(`Missing env: ${missing.join(', ')} (or set DEV=1 for local development)`);
 }
+
+// Not fatal, so a fresh server can start and answer /here in the group to reveal its id.
+if (!dev && !env.groupId) console.warn('GROUP_ID is not set: orders are not posted and nobody is admin. Send /here in the orders group to get it.');
