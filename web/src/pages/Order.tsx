@@ -3,13 +3,11 @@ import type { Me, Order, OrderStatus } from '../../../shared/types.ts';
 import { api, useApi } from '../api.ts';
 import { dateTime, money } from '../format.ts';
 import { LocationPreview } from '../map.tsx';
-import { alert, confirm, haptic } from '../tg.ts';
+import { alert, haptic } from '../tg.ts';
 import { BackButton, StatusBadges, Status } from '../ui.tsx';
 
-const STATUS_TEXT: Record<OrderStatus, { label: string; undo: string }> = {
-  paid: { label: "To'langan", undo: "To'lov bekor qilinsinmi?" },
-  completed: { label: 'Bajarilgan', undo: 'Bajarilgani bekor qilinsinmi?' },
-};
+// Switches work the same in both directions with no confirmation: a mistaken tap is undone by tapping again.
+const STATUS_LABEL: Record<OrderStatus, string> = { paid: "To'langan", completed: 'Bajarilgan' };
 
 /** Order details. Customers see their own orders; admins (e.g. opened from the group message) switch its statuses. */
 export function OrderPage({ id }: { id: number }) {
@@ -19,7 +17,6 @@ export function OrderPage({ id }: { id: number }) {
   const isAdmin = !!me.data?.isAdmin;
 
   async function setStatus(status: OrderStatus, on: boolean) {
-    if (!on && !(await confirm(STATUS_TEXT[status].undo))) return;
     setSaving(status);
     try {
       order.mutate(await api<Order>(`/orders/${id}/${status}`, { method: 'PUT', json: { [status]: on } }));
@@ -53,13 +50,13 @@ export function OrderPage({ id }: { id: number }) {
                 return (
                   <label class="row switch-row" key={status}>
                     <div class="row-main">
-                      <div>{STATUS_TEXT[status].label}</div>
+                      <div>{STATUS_LABEL[status]}</div>
                       {at && <div class="muted">{dateTime(at)}</div>}
                     </div>
                     <input
                       type="checkbox"
                       role="switch"
-                      aria-label={STATUS_TEXT[status].label}
+                      aria-label={STATUS_LABEL[status]}
                       class="switch"
                       checked={!!at}
                       disabled={saving !== null}
