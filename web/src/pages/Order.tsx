@@ -47,7 +47,7 @@ export function OrderPage({ id }: { id: number }) {
                 <div class="row-main">
                   <div>{i.name}</div>
                   <div class="muted">
-                    {i.qty} × {money(i.price)}
+                    {i.qty} dona × {money(i.price)}
                   </div>
                 </div>
                 <div class="row-end">{money(i.price * i.qty)}</div>

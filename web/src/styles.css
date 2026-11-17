@@ -155,8 +155,12 @@ h1 {
 
 .product-price {
   padding: 2px 10px 10px;
+  font-weight: 600;
+}
+
+.unit-price .unit {
   color: var(--hint);
-  font-size: 14px;
+  font-weight: 400;
 }
 
 /* Quantity: number field + confirm button. */

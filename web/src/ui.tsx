@@ -3,6 +3,7 @@
 import type { ComponentChildren } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { useLocation } from 'wouter-preact';
+import { money } from './format.ts';
 import { haptic, inTelegram, tg } from './tg.ts';
 
 type MainButtonProps = { text: string; onClick: () => void; loading?: boolean; disabled?: boolean };
@@ -116,6 +117,16 @@ export function QtyInput({ qty, onSubmit }: { qty: number; onSubmit: (qty: numbe
         <Icon name={qty && !dirty ? 'check' : 'plus'} />
       </button>
     </form>
+  );
+}
+
+/** Price of one piece, e.g. "1 600 so'm / dona". The unit is dimmed so the number stays prominent. */
+export function UnitPrice({ value }: { value: number }) {
+  return (
+    <span class="unit-price">
+      {money(value)}
+      <span class="unit"> / dona</span>
+    </span>
   );
 }
 

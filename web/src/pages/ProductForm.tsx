@@ -104,7 +104,7 @@ export function ProductForm({ id }: { id: number | null }) {
               markValid('price');
             }}
           />
-          <span class="muted">so'm</span>
+          <span class="muted">so'm / dona</span>
         </label>
       </section>
 

@@ -53,7 +53,7 @@ function orderMessage(order: Order) {
     `<b>Buyurtma #${order.id}</b> · ${money(order.total)}`,
     status,
     '',
-    ...order.items.map((i) => `${esc(i.name)} × ${i.qty} = ${money(i.price * i.qty)}`),
+    ...order.items.map((i) => `${esc(i.name)}: ${i.qty} dona × ${num(i.price)} = ${money(i.price * i.qty)}`),
     '',
     `<a href="tg://user?id=${order.userId}">${esc(order.name)}</a>`,
     esc(order.phone),
@@ -70,5 +70,6 @@ function orderMessage(order: Order) {
   };
 }
 
-const money = (n: number) => `${n.toLocaleString('en-US').replaceAll(',', ' ')} so'm`;
+const num = (n: number) => n.toLocaleString('en-US').replaceAll(',', ' ');
+const money = (n: number) => `${num(n)} so'm`;
 const esc = (s: string) => s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');

@@ -1,8 +1,7 @@
 import { Link, useLocation } from 'wouter-preact';
 import type { Order, Product } from '../../../shared/types.ts';
 import { useApi } from '../api.ts';
-import { money } from '../format.ts';
-import { BackButton, Icon, MainButton, Status } from '../ui.tsx';
+import { BackButton, Icon, MainButton, Status, UnitPrice } from '../ui.tsx';
 import { OrderRow } from './OrderRow.tsx';
 
 function AdminTabs() {
@@ -58,7 +57,9 @@ export function AdminProducts() {
                 <img class="thumb" src={p.image} alt="" />
                 <div class="row-main">
                   <div>{p.name}</div>
-                  <div class="muted">{money(p.price)}</div>
+                  <div class="muted">
+                    <UnitPrice value={p.price} />
+                  </div>
                 </div>
                 <Icon name="chevron" />
               </Link>

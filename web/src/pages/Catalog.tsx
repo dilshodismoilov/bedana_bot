@@ -3,7 +3,7 @@ import type { Me, Product } from '../../../shared/types.ts';
 import { useApi } from '../api.ts';
 import { cart, cartLines, linesTotal, setQty } from '../cart.ts';
 import { money } from '../format.ts';
-import { Icon, MainButton, QtyInput, Status } from '../ui.tsx';
+import { Icon, MainButton, QtyInput, Status, UnitPrice } from '../ui.tsx';
 
 export function Catalog() {
   const [, navigate] = useLocation();
@@ -49,7 +49,9 @@ function ProductCard({ product, qty }: { product: Product; qty: number }) {
     <div class="card product">
       <img src={product.image} alt="" loading="lazy" />
       <div class="product-name">{product.name}</div>
-      <div class="product-price">{money(product.price)}</div>
+      <div class="product-price">
+        <UnitPrice value={product.price} />
+      </div>
       <QtyInput qty={qty} onSubmit={(n) => setQty(product.id, n)} />
     </div>
   );

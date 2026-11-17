@@ -6,7 +6,7 @@ import { cartLines, clearCart, draft, linesTotal, setQty } from '../cart.ts';
 import { money } from '../format.ts';
 import { LocationPicker } from '../map.tsx';
 import { alert, haptic, tg } from '../tg.ts';
-import { BackButton, MainButton, QtyInput, Status } from '../ui.tsx';
+import { BackButton, MainButton, QtyInput, Status, UnitPrice } from '../ui.tsx';
 
 /** Checkout fields that are missing or wrong, in screen order. */
 function invalidFields(c: Contact): (keyof Contact)[] {
@@ -85,9 +85,14 @@ export function Cart() {
             <img class="thumb" src={product.image} alt="" />
             <div class="row-main">
               <div>{product.name}</div>
-              <div class="muted">{money(product.price * qty)}</div>
+              <div class="muted">
+                <UnitPrice value={product.price} />
+              </div>
             </div>
-            <QtyInput qty={qty} onSubmit={(n) => setQty(product.id, n)} />
+            <div class="row-end">
+              <QtyInput qty={qty} onSubmit={(n) => setQty(product.id, n)} />
+              <div>{money(product.price * qty)}</div>
+            </div>
           </div>
         ))}
       </section>
