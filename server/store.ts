@@ -1,5 +1,5 @@
 // All SQL lives here. Functions return shared types, never raw rows.
-import type { Contact, LatLng, NewOrder, Order, OrderItem, Product } from '../shared/types.ts';
+import type { Contact, LatLng, NewOrder, Order, OrderItem, OrderStatus, Product } from '../shared/types.ts';
 import { db, tx } from './db.ts';
 
 type Row = Record<string, any>;
@@ -28,6 +28,7 @@ const toOrder = (r: Row): Order => ({
   location: toLocation(r),
   total: r.total,
   paidAt: r.paid_at,
+  completedAt: r.completed_at,
   createdAt: r.created_at,
   items: (db.prepare('SELECT * FROM order_items WHERE order_id = ? ORDER BY rowid').all(r.id) as Row[]).map(toItem),
 });
@@ -100,17 +101,23 @@ export function listUserOrders(userId: number): Order[] {
   return (db.prepare('SELECT * FROM orders WHERE user_id = ? ORDER BY id DESC').all(userId) as Row[]).map(toOrder);
 }
 
-/** Every unpaid order, then the most recent paid ones. */
-export function listAdminOrders(paidLimit = 50): Order[] {
-  const unpaid = db.prepare('SELECT * FROM orders WHERE paid_at IS NULL ORDER BY id DESC').all() as Row[];
-  const paid = db.prepare('SELECT * FROM orders WHERE paid_at IS NOT NULL ORDER BY id DESC LIMIT ?').all(paidLimit) as Row[];
-  return [...unpaid, ...paid].map(toOrder);
+/** Every open order (unpaid or not completed), then the most recently closed ones (paid and completed). */
+export function listAdminOrders(closedLimit = 50): Order[] {
+  const open = db.prepare('SELECT * FROM orders WHERE paid_at IS NULL OR completed_at IS NULL ORDER BY id DESC').all() as Row[];
+  const closed = db
+    .prepare('SELECT * FROM orders WHERE paid_at IS NOT NULL AND completed_at IS NOT NULL ORDER BY id DESC LIMIT ?')
+    .all(closedLimit) as Row[];
+  return [...open, ...closed].map(toOrder);
 }
 
-export function setOrderPaid(id: number, paid: boolean): Order | null {
-  // COALESCE keeps the first payment time if two admins tap "paid" at once.
-  if (paid) db.prepare('UPDATE orders SET paid_at = COALESCE(paid_at, ?) WHERE id = ?').run(new Date().toISOString(), id);
-  else db.prepare('UPDATE orders SET paid_at = NULL WHERE id = ?').run(id);
+const STATUS_COLUMN: Record<OrderStatus, string> = { paid: 'paid_at', completed: 'completed_at' };
+
+/** Switches a status on (records the time) or off. */
+export function setOrderStatus(id: number, status: OrderStatus, on: boolean): Order | null {
+  const column = STATUS_COLUMN[status];
+  // COALESCE keeps the first time if two admins switch it on at once.
+  if (on) db.prepare(`UPDATE orders SET ${column} = COALESCE(${column}, ?) WHERE id = ?`).run(new Date().toISOString(), id);
+  else db.prepare(`UPDATE orders SET ${column} = NULL WHERE id = ?`).run(id);
   return getOrder(id);
 }
 

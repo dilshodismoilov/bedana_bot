@@ -3,7 +3,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { randomUUID } from 'node:crypto';
 import { unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { Me, NewOrder } from '../shared/types.ts';
+import type { Me, NewOrder, OrderStatus } from '../shared/types.ts';
 import { adminOnly, auth, isAdmin, type AuthEnv } from './auth.ts';
 import { uploadsDir } from './db.ts';
 import * as store from './store.ts';
@@ -79,13 +79,16 @@ api.post('/orders', async (c) => {
   return c.json(order, 201);
 });
 
-api.put('/orders/:id/paid', adminOnly, async (c) => {
-  const { paid } = await c.req.json<{ paid: boolean }>();
-  const order = store.setOrderPaid(Number(c.req.param('id')), paid === true);
-  if (!order) return c.json({ error: 'Buyurtma topilmadi' }, 404);
-  refreshOrderMessage(order).catch((e) => console.error('[telegram] refresh failed', e));
-  return c.json(order);
-});
+// PUT /orders/:id/paid {paid: boolean} and PUT /orders/:id/completed {completed: boolean}
+for (const status of ['paid', 'completed'] as const satisfies readonly OrderStatus[]) {
+  api.put(`/orders/:id/${status}`, adminOnly, async (c) => {
+    const body = await c.req.json<Record<string, unknown>>().catch(() => ({}) as Record<string, unknown>);
+    const order = store.setOrderStatus(Number(c.req.param('id')), status, body[status] === true);
+    if (!order) return c.json({ error: 'Buyurtma topilmadi' }, 404);
+    refreshOrderMessage(order).catch((e) => console.error('[telegram] refresh failed', e));
+    return c.json(order);
+  });
+}
 
 // ---------- validation helpers ----------
 

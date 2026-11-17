@@ -47,6 +47,8 @@ const migrations = [
   ALTER TABLE orders ADD COLUMN lng REAL;
   ALTER TABLE orders DROP COLUMN address;
   `,
+  // Completion (delivered) is tracked separately from payment.
+  `ALTER TABLE orders ADD COLUMN completed_at TEXT;`,
 ];
 
 const { user_version } = db.prepare('PRAGMA user_version').get() as { user_version: number };

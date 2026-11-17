@@ -28,8 +28,12 @@ export type Order = Contact & {
   items: OrderItem[];
   total: number;
   paidAt: string | null; // ISO
+  completedAt: string | null; // ISO; delivered/handed over. Independent of payment.
   createdAt: string; // ISO
 };
+
+/** Order statuses an admin can switch on and off. */
+export type OrderStatus = 'paid' | 'completed';
 
 export type NewOrder = Omit<Contact, 'location'> & {
   location: LatLng;

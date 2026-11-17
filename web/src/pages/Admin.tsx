@@ -18,7 +18,7 @@ function AdminTabs() {
   );
 }
 
-/** Unpaid orders first (all of them), then recent paid ones. */
+/** Open orders first (unpaid or not completed), then recently closed ones, dimmed. */
 export function AdminOrders() {
   const orders = useApi<Order[]>('/admin/orders');
   return (

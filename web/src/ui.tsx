@@ -3,6 +3,7 @@
 import type { ComponentChildren } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { useLocation } from 'wouter-preact';
+import type { Order } from '../../shared/types.ts';
 import { money } from './format.ts';
 import { haptic, inTelegram, tg } from './tg.ts';
 
@@ -130,8 +131,14 @@ export function UnitPrice({ value }: { value: number }) {
   );
 }
 
-export function PaidBadge({ paid }: { paid: boolean }) {
-  return <span class={`badge ${paid ? 'badge-paid' : 'badge-unpaid'}`}>{paid ? "To'langan" : "To'lanmagan"}</span>;
+/** Payment status always; completion only once done (not completed is the normal state, so it adds no badge). */
+export function StatusBadges({ order }: { order: Pick<Order, 'paidAt' | 'completedAt'> }) {
+  return (
+    <span class="badges">
+      <span class={`badge ${order.paidAt ? 'badge-paid' : 'badge-unpaid'}`}>{order.paidAt ? "To'langan" : "To'lanmagan"}</span>
+      {order.completedAt && <span class="badge badge-completed">Bajarildi</span>}
+    </span>
+  );
 }
 
 /** Loading/error/empty states for a page body. */

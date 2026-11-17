@@ -1,6 +1,6 @@
 # Bedana shop
 
-Telegram Mini App for selling quail eggs and similar products. Customers browse, fill a cart, drop a pin on the map for delivery and place an order. The order is posted to a private Telegram group with an **Ochish** button that opens the order in the app, followed by the delivery location as a Telegram location message. Payment happens outside the app; an admin marks the order as paid, and the group message updates itself.
+Telegram Mini App for selling quail eggs and similar products. Customers browse, fill a cart, drop a pin on the map for delivery and place an order. The order is posted to a private Telegram group with an **Ochish** button that opens the order in the app, followed by the delivery location as a Telegram location message. Payment happens outside the app. Admins switch each order to paid and to completed (delivered) independently, and the group message updates itself.
 
 - **Admins are the members of the orders group.** To add an admin, add them to the group; to remove one, remove them from it.
 - Prices are per piece in so'm. There is no stock tracking.

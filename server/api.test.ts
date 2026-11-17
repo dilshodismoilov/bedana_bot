@@ -87,7 +87,12 @@ test('customers cannot use admin endpoints or see other customers orders', async
   const created = (await order.json()) as any;
   assert.equal(created.total, 3600, 'client-sent price is ignored');
 
-  for (const [method, path] of [['GET', '/api/admin/orders'], ['PUT', `/api/orders/${created.id}/paid`], ['DELETE', `/api/products/${product.body.id}`]]) {
+  for (const [method, path] of [
+    ['GET', '/api/admin/orders'],
+    ['PUT', `/api/orders/${created.id}/paid`],
+    ['PUT', `/api/orders/${created.id}/completed`],
+    ['DELETE', `/api/products/${product.body.id}`],
+  ]) {
     const res = await app.request(path, { method, headers: asCustomer(7), body: method === 'PUT' ? '{"paid":true}' : undefined });
     assert.equal(res.status, 403, `${method} ${path}`);
   }
@@ -103,6 +108,31 @@ test('marking an order paid twice keeps the first payment time', async () => {
   const second = await call('PUT', `/orders/${order.body.id}/paid`, { paid: true });
   assert.equal(second.body.paidAt, first.body.paidAt);
   assert.equal((await call('PUT', `/orders/${order.body.id}/paid`, { paid: false })).body.paidAt, null);
+});
+
+test('completed is independent of paid; admin list shows open orders before closed ones', async () => {
+  const product = await call('POST', '/products', productForm('Bedana', 100));
+  const place = async () =>
+    (await call('POST', '/orders', { name: 'A', phone: '+998901234567', location: HERE, items: [{ productId: product.body.id, qty: 1 }] })).body;
+  const closed = await place();
+  const deliveredUnpaid = await place();
+  const fresh = await place();
+
+  await call('PUT', `/orders/${closed.id}/paid`, { paid: true });
+  const closedNow = await call('PUT', `/orders/${closed.id}/completed`, { completed: true });
+  assert.ok(closedNow.body.paidAt && closedNow.body.completedAt);
+
+  const delivered = await call('PUT', `/orders/${deliveredUnpaid.id}/completed`, { completed: true });
+  assert.ok(delivered.body.completedAt);
+  assert.equal(delivered.body.paidAt, null, 'completing does not mark paid');
+
+  const ids = (await call('GET', '/admin/orders')).body.map((o: any) => o.id);
+  const pos = (id: number) => ids.indexOf(id);
+  assert.ok(pos(closed.id) > pos(deliveredUnpaid.id) && pos(closed.id) > pos(fresh.id), 'closed order is listed after open ones');
+
+  const undone = await call('PUT', `/orders/${deliveredUnpaid.id}/completed`, { completed: false });
+  assert.equal(undone.body.completedAt, null);
+  assert.equal((await call('PUT', '/orders/99999/completed', { completed: true })).status, 404);
 });
 
 test('order validation', async () => {

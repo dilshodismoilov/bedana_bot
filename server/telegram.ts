@@ -36,7 +36,7 @@ export async function announceOrder(order: Order): Promise<void> {
   console.log(`[telegram] order #${order.id} posted to the group`);
 }
 
-/** Re-renders the group message after the order changed (e.g. marked as paid). */
+/** Re-renders the group message after the order changed (marked paid or completed). */
 export async function refreshOrderMessage(order: Order): Promise<void> {
   const messageId = getOrderMessageId(order.id);
   if (!enabled() || !messageId) return;
@@ -48,7 +48,7 @@ export async function refreshOrderMessage(order: Order): Promise<void> {
 }
 
 function orderMessage(order: Order) {
-  const status = order.paidAt ? "✅ To'langan" : "🟡 To'lanmagan";
+  const status = (order.paidAt ? "✅ To'langan" : "🟡 To'lanmagan") + (order.completedAt ? ' · 📦 Bajarildi' : '');
   const lines = [
     `<b>Buyurtma #${order.id}</b> · ${money(order.total)}`,
     status,

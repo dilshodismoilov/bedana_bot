@@ -1,28 +1,33 @@
 import { useState } from 'preact/hooks';
-import type { Me, Order } from '../../../shared/types.ts';
+import type { Me, Order, OrderStatus } from '../../../shared/types.ts';
 import { api, useApi } from '../api.ts';
 import { dateTime, money } from '../format.ts';
 import { LocationPreview } from '../map.tsx';
 import { alert, confirm, haptic } from '../tg.ts';
-import { BackButton, MainButton, PaidBadge, Status } from '../ui.tsx';
+import { BackButton, StatusBadges, Status } from '../ui.tsx';
 
-/** Order details. Customers see their own orders; admins (opened from the group message) can mark payment. */
+const STATUS_TEXT: Record<OrderStatus, { label: string; undo: string }> = {
+  paid: { label: "To'langan", undo: "To'lov bekor qilinsinmi?" },
+  completed: { label: 'Bajarilgan', undo: 'Bajarilgani bekor qilinsinmi?' },
+};
+
+/** Order details. Customers see their own orders; admins (e.g. opened from the group message) switch its statuses. */
 export function OrderPage({ id }: { id: number }) {
   const order = useApi<Order>(`/orders/${id}`);
   const me = useApi<Me>('/me');
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState<OrderStatus | null>(null);
   const isAdmin = !!me.data?.isAdmin;
 
-  async function setPaid(paid: boolean) {
-    if (!paid && !(await confirm("To'lov bekor qilinsinmi?"))) return;
-    setSaving(true);
+  async function setStatus(status: OrderStatus, on: boolean) {
+    if (!on && !(await confirm(STATUS_TEXT[status].undo))) return;
+    setSaving(status);
     try {
-      order.mutate(await api<Order>(`/orders/${id}/paid`, { method: 'PUT', json: { paid } }));
+      order.mutate(await api<Order>(`/orders/${id}/${status}`, { method: 'PUT', json: { [status]: on } }));
       haptic.success();
     } catch (e) {
       alert((e as Error).message);
     }
-    setSaving(false);
+    setSaving(null);
   }
 
   const o = order.data;
@@ -38,8 +43,36 @@ export function OrderPage({ id }: { id: number }) {
               <h1>#{o.id}</h1>
               <div class="muted">{dateTime(o.createdAt)}</div>
             </div>
-            <PaidBadge paid={!!o.paidAt} />
+            <StatusBadges order={o} />
           </section>
+
+          {isAdmin && (
+            <section class="card list">
+              {(['paid', 'completed'] as const).map((status) => {
+                const at = status === 'paid' ? o.paidAt : o.completedAt;
+                return (
+                  <label class="row switch-row" key={status}>
+                    <div class="row-main">
+                      <div>{STATUS_TEXT[status].label}</div>
+                      {at && <div class="muted">{dateTime(at)}</div>}
+                    </div>
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      aria-label={STATUS_TEXT[status].label}
+                      class="switch"
+                      checked={!!at}
+                      disabled={saving !== null}
+                      onClick={(e) => {
+                        e.preventDefault(); // the server's answer sets the state, not the click
+                        setStatus(status, !at);
+                      }}
+                    />
+                  </label>
+                );
+              })}
+            </section>
+          )}
 
           <section class="card list">
             {o.items.map((i, n) => (
@@ -67,15 +100,6 @@ export function OrderPage({ id }: { id: number }) {
           </section>
 
           {o.location && <LocationPreview value={o.location} />}
-
-          {isAdmin &&
-            (o.paidAt ? (
-              <button class="text-button" onClick={() => setPaid(false)} disabled={saving}>
-                To'lovni bekor qilish
-              </button>
-            ) : (
-              <MainButton text="To'landi" onClick={() => setPaid(true)} loading={saving} />
-            ))}
         </>
       )}
     </div>
