@@ -22,6 +22,21 @@ export function alert(message: string): void {
   else window.alert(message);
 }
 
+let askedWriteAccess = false;
+
+/**
+ * Lets the bot message the user in a private chat (the order confirmation). Telegram shows its own
+ * "allow messages" prompt once, and only if the user hasn't allowed it or started the bot already.
+ * Resolves either way: the order goes through whatever the answer is.
+ */
+export function allowBotMessages(): Promise<void> {
+  if (!inTelegram || askedWriteAccess || tg.initDataUnsafe.user?.allows_write_to_pm || !tg.isVersionAtLeast('6.9')) {
+    return Promise.resolve();
+  }
+  askedWriteAccess = true;
+  return new Promise((resolve) => tg.requestWriteAccess(() => resolve()));
+}
+
 /** Order id from a group-message deep link (`?startapp=order_42`), if the app was opened by one. */
 export function startOrderId(): number | null {
   const m = /^order_(\d+)$/.exec(tg.initDataUnsafe.start_param ?? '');

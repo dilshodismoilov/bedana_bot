@@ -5,7 +5,7 @@ import { api, prime, useApi } from '../api.ts';
 import { cartLines, clearCart, draft, linesTotal, setQty } from '../cart.ts';
 import { money } from '../format.ts';
 import { LocationPicker } from '../map.tsx';
-import { alert, haptic, tg } from '../tg.ts';
+import { alert, allowBotMessages, haptic, tg } from '../tg.ts';
 import { BackButton, MainButton, QtyInput, Status, UnitPrice } from '../ui.tsx';
 
 /** Checkout fields that are missing or wrong, in screen order. */
@@ -56,6 +56,7 @@ export function Cart() {
       return;
     }
     setSending(true);
+    await allowBotMessages(); // so the bot can send the order confirmation to the customer's chat
     try {
       const order = await api<Order>('/orders', {
         method: 'POST',
@@ -90,7 +91,7 @@ export function Cart() {
               </div>
             </div>
             <div class="row-end">
-              <QtyInput qty={qty} onSubmit={(n) => setQty(product.id, n)} />
+              <QtyInput qty={qty} onChange={(n) => setQty(product.id, n)} />
               <div>{money(product.price * qty)}</div>
             </div>
           </div>

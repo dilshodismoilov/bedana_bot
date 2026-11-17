@@ -36,6 +36,21 @@ export async function announceOrder(order: Order): Promise<void> {
   console.log(`[telegram] order #${order.id} posted to the group`);
 }
 
+/**
+ * Sends the customer an order confirmation in their private chat with the bot. Telegram only allows this if they
+ * started the bot or allowed messages (the app asks at checkout), so a refusal is expected and only logged.
+ */
+export async function notifyCustomer(order: Order): Promise<void> {
+  if (!env.botToken) return;
+  try {
+    await botApi('sendMessage', { chat_id: order.userId, ...customerMessage(order) });
+    console.log(`[telegram] order #${order.id} confirmation sent to the customer`);
+  } catch (e) {
+    if (!(e instanceof TelegramError)) throw e;
+    console.log(`[telegram] could not message the customer of order #${order.id}: ${e.message}`);
+  }
+}
+
 /** Re-renders the group message after the order changed (marked paid or completed). */
 export async function refreshOrderMessage(order: Order): Promise<void> {
   const messageId = getOrderMessageId(order.id);
@@ -53,19 +68,36 @@ function orderMessage(order: Order) {
     `<b>Buyurtma #${order.id}</b> · ${money(order.total)}`,
     status,
     '',
-    ...order.items.map((i) => `${esc(i.name)}: ${i.qty} dona × ${num(i.price)} = ${money(i.price * i.qty)}`),
+    ...itemLines(order),
     '',
     `<a href="tg://user?id=${order.userId}">${esc(order.name)}</a>`,
     esc(order.phone),
   ];
+  return htmlWithOpenButton(lines, order.id);
+}
+
+function customerMessage(order: Order) {
+  const lines = [
+    "✅ Buyurtmangiz qabul qilindi. Tez orada siz bilan bog'lanamiz.",
+    '',
+    `<b>Buyurtma #${order.id}</b> · ${money(order.total)}`,
+    ...itemLines(order),
+  ];
+  return htmlWithOpenButton(lines, order.id);
+}
+
+const itemLines = (order: Order) =>
+  order.items.map((i) => `${esc(i.name)}: ${i.qty} dona × ${num(i.price)} = ${money(i.price * i.qty)}`);
+
+function htmlWithOpenButton(lines: string[], orderId: number) {
   return {
     text: lines.join('\n'),
     parse_mode: 'HTML',
     link_preview_options: { is_disabled: true },
-    // web_app buttons are not allowed in groups, so this is a t.me link with a start parameter.
-    // The web app reads it from initDataUnsafe.start_param and opens /orders/:id.
+    // web_app buttons are not allowed in groups, so this is a t.me link with a start parameter (it works in
+    // private chats too). The web app reads it from initDataUnsafe.start_param and opens /orders/:id.
     reply_markup: env.appLink
-      ? { inline_keyboard: [[{ text: 'Ochish', url: `${env.appLink}?startapp=order_${order.id}` }]] }
+      ? { inline_keyboard: [[{ text: 'Ochish', url: `${env.appLink}?startapp=order_${orderId}` }]] }
       : undefined,
   };
 }

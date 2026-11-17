@@ -7,7 +7,7 @@ import type { Me, NewOrder, OrderStatus } from '../shared/types.ts';
 import { adminOnly, auth, isAdmin, type AuthEnv } from './auth.ts';
 import { uploadsDir } from './db.ts';
 import * as store from './store.ts';
-import { announceOrder, refreshOrderMessage } from './telegram.ts';
+import { announceOrder, notifyCustomer, refreshOrderMessage } from './telegram.ts';
 
 export const api = new Hono<AuthEnv>();
 
@@ -76,6 +76,7 @@ api.post('/orders', async (c) => {
   const input = parseNewOrder(await c.req.json().catch(() => null));
   const order = store.createOrder(c.get('user').id, input);
   announceOrder(order).catch((e) => console.error('[telegram] announce failed', e));
+  notifyCustomer(order).catch((e) => console.error('[telegram] customer message failed', e));
   return c.json(order, 201);
 });
 

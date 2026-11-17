@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { useLocation } from 'wouter-preact';
 import type { Order } from '../../shared/types.ts';
 import { money } from './format.ts';
-import { haptic, inTelegram, tg } from './tg.ts';
+import { inTelegram, tg } from './tg.ts';
 
 type MainButtonProps = { text: string; onClick: () => void; loading?: boolean; disabled?: boolean };
 
@@ -73,50 +73,51 @@ export function BackButton({ to }: { to: string }) {
 const MAX_QTY = 100_000; // same limit as the server
 
 /**
- * Quantity entry for orders of any size: type a number, confirm with the button (or the keyboard's Enter).
- * Confirming 0 or an empty field removes the item. The button is highlighted while the typed number
- * differs from the cart, and shows ✓ once they match.
+ * Quantity field: the cart follows the number as it is typed, no button to press.
+ * An emptied field removes the item when the field loses focus, so a cart row doesn't vanish
+ * while a new number is being typed.
  */
-export function QtyInput({ qty, onSubmit }: { qty: number; onSubmit: (qty: number) => void }) {
+export function QtyInput({ qty, onChange }: { qty: number; onChange: (qty: number) => void }) {
   const [value, setValue] = useState(qty ? String(qty) : '');
-  const input = useRef<HTMLInputElement>(null);
+  const focused = useRef(false);
 
-  useEffect(() => setValue(qty ? String(qty) : ''), [qty]);
-
-  const typed = Number(value || 0);
-  const dirty = typed !== qty;
-
-  function submit(e: Event) {
-    e.preventDefault();
-    if (!dirty) {
-      if (!qty) input.current?.focus(); // nothing typed yet: start typing
-      return;
-    }
-    haptic.tap();
-    onSubmit(typed);
-    input.current?.blur(); // close the keyboard so the cart button is visible
-  }
+  // Follow cart changes made elsewhere (e.g. the same product's field on another screen), but not mid-typing.
+  useEffect(() => {
+    if (!focused.current) setValue(qty ? String(qty) : '');
+  }, [qty]);
 
   return (
-    <form class={`qty ${dirty ? 'dirty' : ''}`} onSubmit={submit}>
+    <form
+      class={`qty ${qty ? 'in-cart' : ''}`}
+      onSubmit={(e) => {
+        e.preventDefault();
+        (e.currentTarget.elements[0] as HTMLInputElement).blur(); // Enter closes the keyboard
+      }}
+    >
       <input
-        ref={input}
         inputMode="numeric"
         pattern="[0-9]*"
         enterKeyHint="done"
         placeholder="0"
         aria-label="Miqdor"
         value={value}
+        onFocus={() => (focused.current = true)}
+        onBlur={() => {
+          focused.current = false;
+          if (!Number(value)) {
+            setValue('');
+            onChange(0);
+          }
+        }}
         onInput={(e) => {
-          const digits = e.currentTarget.value.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+          const digits = e.currentTarget.value.replace(/D/g, '').replace(/^0+(?=d)/, '');
           const next = digits && String(Math.min(Number(digits), MAX_QTY));
           e.currentTarget.value = next; // keep the field in sync even when the state value doesn't change
           setValue(next);
+          if (Number(next) > 0) onChange(Number(next));
         }}
       />
-      <button type="submit" aria-label={qty ? 'Saqlash' : "Savatga qo'shish"}>
-        <Icon name={qty && !dirty ? 'check' : 'plus'} />
-      </button>
+      <span>dona</span>
     </form>
   );
 }
@@ -153,9 +154,7 @@ export function Status({ error, children }: { error?: string; children?: Compone
 }
 
 const paths = {
-  plus: 'M12 5v14M5 12h14',
   box: 'M3 7.5L12 3l9 4.5v9L12 21l-9-4.5zM3 7.5L12 12l9-4.5M12 12v9',
-  check: 'M5 12.5l4.5 4.5L19 7.5',
   back: 'M15 18l-6-6 6-6',
   receipt: 'M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6',
   settings: 'M4 6h16M4 12h16M4 18h16M8 4v4M16 10v4M10 16v4',

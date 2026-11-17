@@ -63,7 +63,7 @@ function ProductCard({ product, qty }: { product: Product; qty: number }) {
       <div class="product-price">
         <UnitPrice value={product.price} />
       </div>
-      <QtyInput qty={qty} onSubmit={(n) => setQty(product.id, n)} />
+      <QtyInput qty={qty} onChange={(n) => setQty(product.id, n)} />
     </div>
   );
 }

@@ -183,11 +183,19 @@ h1 {
   font-weight: 400;
 }
 
-/* Quantity: number field + confirm button. */
+/* Quantity: "[ 12 dona ]". The number half is the input; the whole box is tappable. */
 .qty {
   display: flex;
+  align-items: center;
   gap: 6px;
   height: 38px;
+  border-radius: 10px;
+  background: var(--tint);
+  color: var(--hint);
+}
+
+.qty:focus-within {
+  box-shadow: inset 0 0 0 2px var(--accent);
 }
 
 .product .qty {
@@ -195,39 +203,30 @@ h1 {
 }
 
 .row .qty {
-  width: 132px;
+  width: 120px;
   flex: none;
 }
 
 .qty input {
-  flex: 1;
+  flex: 3; /* room for 6 digits next to "dona" */
   width: 0;
+  padding: 0 0 0 6px;
+  height: 100%;
   border: 0;
-  border-radius: 10px;
-  background: var(--tint);
-  text-align: center;
+  background: none;
+  text-align: right;
   font-weight: 600;
   outline: none;
 }
 
-.qty input:focus {
-  box-shadow: inset 0 0 0 2px var(--accent);
+.qty span {
+  flex: 2;
+  font-size: 14px;
 }
 
-.qty button {
-  width: 38px;
-  flex: none;
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-  background: var(--tint);
+/* In the cart: the number takes the accent color. */
+.qty.in-cart input {
   color: var(--accent);
-}
-
-/* Typed but not confirmed yet: the button asks to be pressed. */
-.qty.dirty button {
-  background: var(--accent);
-  color: var(--accent-text);
 }
 
 /* ---------- lists ---------- */
