@@ -14,6 +14,8 @@ process.env.GROUP_ID = '';
 const { app } = await import('./app.ts');
 const { verifyInitData } = await import('./auth.ts');
 
+const HERE = { lat: 41.3, lng: 69.24 };
+
 const call = async (method: string, path: string, body?: unknown) => {
   const init: RequestInit = { method };
   if (body instanceof FormData) init.body = body;
@@ -51,7 +53,7 @@ test('product CRUD, order with server-side pricing, paid toggle', async () => {
   const order = await call('POST', '/orders', {
     name: 'Ali',
     phone: '+998 90 123 45 67',
-    address: 'Toshkent',
+    location: { lat: 41.311081, lng: 69.240562 },
     items: [{ productId: created.body.id, qty: 30 }],
   });
   assert.equal(order.status, 201);
@@ -59,7 +61,7 @@ test('product CRUD, order with server-side pricing, paid toggle', async () => {
   assert.deepEqual(order.body.items, [{ productId: created.body.id, name: 'Bedana tuxumi', price: 1600, qty: 30 }]);
 
   const me = await call('GET', '/me');
-  assert.deepEqual(me.body, { isAdmin: true, ordersCount: 1, contact: { name: 'Ali', phone: '+998 90 123 45 67', address: 'Toshkent' } });
+  assert.deepEqual(me.body, { isAdmin: true, ordersCount: 1, contact: { name: 'Ali', phone: '+998 90 123 45 67', location: { lat: 41.311081, lng: 69.240562 } } });
 
   const paid = await call('PUT', `/orders/${order.body.id}/paid`, { paid: true });
   assert.ok(paid.body.paidAt);
@@ -70,7 +72,7 @@ test('product CRUD, order with server-side pricing, paid toggle', async () => {
   assert.equal(after.body.items[0].productId, null);
   assert.equal(after.body.items[0].name, 'Bedana tuxumi');
 
-  const stale = await call('POST', '/orders', { name: 'A', phone: '1', address: 'B', items: [{ productId: created.body.id, qty: 1 }] });
+  const stale = await call('POST', '/orders', { name: 'A', phone: '1', location: HERE, items: [{ productId: created.body.id, qty: 1 }] });
   assert.equal(stale.status, 400);
 });
 
@@ -80,7 +82,7 @@ test('customers cannot use admin endpoints or see other customers orders', async
   const order = await app.request('/api/orders', {
     method: 'POST',
     headers: asCustomer(7),
-    body: JSON.stringify({ name: 'A', phone: '+998901234567', address: 'B', items: [{ productId: product.body.id, qty: 2, price: 1 }] }),
+    body: JSON.stringify({ name: 'A', phone: '+998901234567', location: HERE, items: [{ productId: product.body.id, qty: 2, price: 1 }] }),
   });
   const created = (await order.json()) as any;
   assert.equal(created.total, 3600, 'client-sent price is ignored');
@@ -95,7 +97,7 @@ test('customers cannot use admin endpoints or see other customers orders', async
 
 test('marking an order paid twice keeps the first payment time', async () => {
   const product = await call('POST', '/products', productForm('Bedana', 100));
-  const order = await call('POST', '/orders', { name: 'A', phone: '+998901234567', address: 'B', items: [{ productId: product.body.id, qty: 1 }] });
+  const order = await call('POST', '/orders', { name: 'A', phone: '+998901234567', location: HERE, items: [{ productId: product.body.id, qty: 1 }] });
   const first = await call('PUT', `/orders/${order.body.id}/paid`, { paid: true });
   await new Promise((r) => setTimeout(r, 5));
   const second = await call('PUT', `/orders/${order.body.id}/paid`, { paid: true });
@@ -104,9 +106,16 @@ test('marking an order paid twice keeps the first payment time', async () => {
 });
 
 test('order validation', async () => {
-  const res = await call('POST', '/orders', { name: '', phone: '1', address: 'x', items: [{ productId: 1, qty: 1 }] });
+  const res = await call('POST', '/orders', { name: '', phone: '1', location: HERE, items: [{ productId: 1, qty: 1 }] });
   assert.equal(res.status, 400);
   assert.equal(res.body.error, 'Ismingizni kiriting');
+
+  const order = (location: unknown) => call('POST', '/orders', { name: 'A', phone: '+998901234567', location, items: [{ productId: 1, qty: 1 }] });
+  for (const bad of [undefined, null, {}, { lat: 41 }, { lat: 91, lng: 69 }, { lat: 41, lng: 181 }, { lat: 'x', lng: 69 }]) {
+    const r = await order(bad);
+    assert.equal(r.status, 400, JSON.stringify(bad));
+    assert.equal(r.body.error, 'Yetkazib berish joyini xaritada belgilang');
+  }
 });
 
 test('verifyInitData accepts genuine data and rejects tampering/expiry', () => {

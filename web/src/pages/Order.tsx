@@ -2,6 +2,7 @@ import { useState } from 'preact/hooks';
 import type { Me, Order } from '../../../shared/types.ts';
 import { api, useApi } from '../api.ts';
 import { dateTime, money } from '../format.ts';
+import { LocationPreview } from '../map.tsx';
 import { alert, confirm, haptic } from '../tg.ts';
 import { BackButton, MainButton, PaidBadge, Status } from '../ui.tsx';
 
@@ -63,8 +64,9 @@ export function OrderPage({ id }: { id: number }) {
             <a class="row link" href={`tel:${o.phone.replace(/[^\d+]/g, '')}`}>
               {o.phone}
             </a>
-            <div class="row pre">{o.address}</div>
           </section>
+
+          {o.location && <LocationPreview value={o.location} />}
 
           {isAdmin &&
             (o.paidAt ? (

@@ -7,10 +7,12 @@ export type Product = {
   image: string; // URL path, e.g. /uploads/abc.jpg
 };
 
+export type LatLng = { lat: number; lng: number };
+
 export type Contact = {
   name: string;
   phone: string;
-  address: string;
+  location: LatLng | null; // delivery point; required for new orders, null only on orders from before locations existed
 };
 
 export type OrderItem = {
@@ -29,7 +31,8 @@ export type Order = Contact & {
   createdAt: string; // ISO
 };
 
-export type NewOrder = Contact & {
+export type NewOrder = Omit<Contact, 'location'> & {
+  location: LatLng;
   items: { productId: number; qty: number }[];
 };
 

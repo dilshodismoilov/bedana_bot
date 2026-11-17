@@ -41,6 +41,12 @@ const migrations = [
   );
   CREATE INDEX order_items_order ON order_items(order_id);
   `,
+  // Delivery location (map pin) replaces the free-text address. Older orders keep NULL coordinates.
+  `
+  ALTER TABLE orders ADD COLUMN lat REAL;
+  ALTER TABLE orders ADD COLUMN lng REAL;
+  ALTER TABLE orders DROP COLUMN address;
+  `,
 ];
 
 const { user_version } = db.prepare('PRAGMA user_version').get() as { user_version: number };

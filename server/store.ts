@@ -1,5 +1,5 @@
 // All SQL lives here. Functions return shared types, never raw rows.
-import type { Contact, NewOrder, Order, OrderItem, Product } from '../shared/types.ts';
+import type { Contact, LatLng, NewOrder, Order, OrderItem, Product } from '../shared/types.ts';
 import { db, tx } from './db.ts';
 
 type Row = Record<string, any>;
@@ -18,12 +18,14 @@ const toItem = (r: Row): OrderItem => ({
   qty: r.qty,
 });
 
+const toLocation = (r: Row): LatLng | null => (r.lat == null || r.lng == null ? null : { lat: r.lat, lng: r.lng });
+
 const toOrder = (r: Row): Order => ({
   id: r.id,
   userId: r.user_id,
   name: r.name,
   phone: r.phone,
-  address: r.address,
+  location: toLocation(r),
   total: r.total,
   paidAt: r.paid_at,
   createdAt: r.created_at,
@@ -78,8 +80,8 @@ export function createOrder(userId: number, input: NewOrder): Order {
     const total = items.reduce((sum, i) => sum + i.price * i.qty, 0);
 
     const { lastInsertRowid } = db
-      .prepare('INSERT INTO orders (user_id, name, phone, address, total, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(userId, input.name, input.phone, input.address, total, new Date().toISOString());
+      .prepare('INSERT INTO orders (user_id, name, phone, lat, lng, total, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(userId, input.name, input.phone, input.location.lat, input.location.lng, total, new Date().toISOString());
     const orderId = Number(lastInsertRowid);
 
     const insertItem = db.prepare('INSERT INTO order_items (order_id, product_id, name, price, qty) VALUES (?, ?, ?, ?, ?)');
@@ -123,7 +125,7 @@ export function getOrderMessageId(id: number): number | null {
 
 export function userStats(userId: number): { ordersCount: number; contact: Contact | null } {
   const r = db
-    .prepare('SELECT name, phone, address, (SELECT COUNT(*) FROM orders WHERE user_id = ?) AS n FROM orders WHERE user_id = ? ORDER BY id DESC LIMIT 1')
+    .prepare('SELECT name, phone, lat, lng, (SELECT COUNT(*) FROM orders WHERE user_id = ?) AS n FROM orders WHERE user_id = ? ORDER BY id DESC LIMIT 1')
     .get(userId, userId) as Row | undefined;
-  return r ? { ordersCount: r.n, contact: { name: r.name, phone: r.phone, address: r.address } } : { ordersCount: 0, contact: null };
+  return r ? { ordersCount: r.n, contact: { name: r.name, phone: r.phone, location: toLocation(r) } } : { ordersCount: 0, contact: null };
 }

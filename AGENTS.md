@@ -20,7 +20,8 @@ web/src/
   app.tsx            all routes
   pages/             one file per screen; each page fetches its own data
   ui.tsx             MainButton, BackButton, Stepper, Status, Icon
-  tg.ts              Telegram WebApp SDK wrapper (haptics, confirm, deep link)
+  tg.ts              Telegram WebApp SDK wrapper (haptics, confirm, deep link, device location)
+  map.tsx            delivery-location map: picker at checkout, preview on orders (Leaflet, lazy-loaded)
   api.ts             fetch wrapper + useApi (stale-while-revalidate cache)
   cart.ts            cart and checkout draft (signals, persisted to localStorage)
   styles.css         all styles; colors come from Telegram theme variables
@@ -51,4 +52,5 @@ For UI changes, check the affected screens in a mobile-sized browser viewport, i
 - **UI principle:** no helper labels, hints or explanatory text. If a screen needs one, fix the layout instead. Placeholders serve as field labels. Use Telegram's MainButton (via `ui.tsx`) for the screen's primary action and `BackButton to=...` with an explicit parent screen.
 - **Deep link:** the group message button opens `APP_LINK?startapp=order_<id>`. `main.tsx` turns that into the `/orders/<id>` route.
 - **Ports:** the server reads `API_PORT`, not `PORT`, because dev tools often inject `PORT` for themselves. Vite is pinned to 5173 with `strictPort`.
+- **Delivery location** is a map pin (`location: {lat, lng}`), not an address. Map tiles come from OpenStreetMap's public tile server, which is fine for a small shop; if traffic grows, switch the tile URL in `map.tsx` to a paid provider. The group gets a native Telegram location message as a reply to each order.
 - **Telegram limits:** `web_app` inline buttons don't work in groups, which is why the group message uses a `t.me` URL button.

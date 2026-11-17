@@ -101,6 +101,14 @@ function int(value: unknown, min: number, max: number, message: string): number 
   return n;
 }
 
+function location(value: any): { lat: number; lng: number } {
+  const lat = Number(value?.lat);
+  const lng = Number(value?.lng);
+  const ok = value?.lat != null && value?.lng != null && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+  if (!ok) throw new store.UserError("Yetkazib berish joyini xaritada belgilang");
+  return { lat, lng };
+}
+
 function productFields(body: Record<string, unknown>) {
   return {
     name: text(body.name, 100, 'Nomini kiriting'),
@@ -114,7 +122,7 @@ function parseNewOrder(body: any): NewOrder {
   return {
     name: text(body.name, 100, 'Ismingizni kiriting'),
     phone: text(body.phone, 30, 'Telefon raqamingizni kiriting'),
-    address: text(body.address, 500, 'Manzilni kiriting'),
+    location: location(body.location),
     items: items.map((i: any) => ({
       productId: int(i?.productId, 1, Number.MAX_SAFE_INTEGER, 'Savatda xatolik'),
       qty: int(i?.qty, 1, 100_000, "Miqdor noto'g'ri"),

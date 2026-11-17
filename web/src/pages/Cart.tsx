@@ -4,14 +4,18 @@ import type { Contact, Me, Order, Product } from '../../../shared/types.ts';
 import { api, prime, useApi } from '../api.ts';
 import { cartLines, clearCart, draft, linesTotal, setQty } from '../cart.ts';
 import { money } from '../format.ts';
+import { LocationPicker } from '../map.tsx';
 import { alert, haptic, tg } from '../tg.ts';
 import { BackButton, MainButton, Status, Stepper } from '../ui.tsx';
 
-const isValid: Record<keyof Contact, (v: string) => boolean> = {
-  name: (v) => v.trim().length > 0,
-  phone: (v) => v.replace(/\D/g, '').length >= 9,
-  address: (v) => v.trim().length > 0,
-};
+/** Checkout fields that are missing or wrong, in screen order. */
+function invalidFields(c: Contact): (keyof Contact)[] {
+  const bad: (keyof Contact)[] = [];
+  if (!c.name.trim()) bad.push('name');
+  if (c.phone.replace(/\D/g, '').length < 9) bad.push('phone');
+  if (!c.location) bad.push('location');
+  return bad;
+}
 
 export function Cart() {
   const [, navigate] = useLocation();
@@ -26,9 +30,9 @@ export function Cart() {
 
   // Prefill from the last order, or from the Telegram profile on the first order.
   useEffect(() => {
-    if (!me.data || form.name || form.phone || form.address) return;
+    if (!me.data || form.name || form.phone || form.location) return;
     const u = tg.initDataUnsafe.user;
-    draft.value = me.data.contact ?? { name: [u?.first_name, u?.last_name].filter(Boolean).join(' '), phone: '', address: '' };
+    draft.value = me.data.contact ?? { name: [u?.first_name, u?.last_name].filter(Boolean).join(' '), phone: '', location: null };
   }, [me.data]);
 
   // Emptied the cart from here: nothing left to check out.
@@ -36,17 +40,19 @@ export function Cart() {
     if (products.data && lines.length === 0 && !sending) navigate('/');
   }, [products.data, lines.length]);
 
-  const set = (key: keyof Contact) => (e: Event) => {
-    draft.value = { ...draft.value, [key]: (e.currentTarget as HTMLInputElement).value };
+  const update = <K extends keyof Contact>(key: K, value: Contact[K]) => {
+    draft.value = { ...draft.value, [key]: value };
     setInvalid((s) => ({ ...s, [key]: false }));
   };
+  const set = (key: 'name' | 'phone') => (e: Event) => update(key, (e.currentTarget as HTMLInputElement).value);
 
   async function submit() {
-    const bad = (Object.keys(isValid) as (keyof Contact)[]).filter((k) => !isValid[k](form[k]));
+    const bad = invalidFields(form);
     if (bad.length) {
       haptic.error();
       setInvalid(Object.fromEntries(bad.map((k) => [k, true])));
-      document.querySelector<HTMLElement>(`[name=${bad[0]}]`)?.focus();
+      if (bad[0] === 'location') document.getElementById('location')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      else document.querySelector<HTMLElement>(`[name=${bad[0]}]`)?.focus();
       return;
     }
     setSending(true);
@@ -98,8 +104,9 @@ export function Cart() {
           onInput={set('phone')}
           onFocus={() => !form.phone && (draft.value = { ...form, phone: '+998 ' })}
         />
-        <textarea name="address" class={invalid.address ? 'invalid' : ''} placeholder="Manzil" rows={2} value={form.address} onInput={set('address')} />
       </section>
+
+      <LocationPicker value={form.location} onChange={(p) => update('location', p)} invalid={invalid.location} />
 
       <MainButton text={`Buyurtma berish · ${money(total)}`} onClick={submit} loading={sending} />
     </div>

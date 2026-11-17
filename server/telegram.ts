@@ -24,6 +24,15 @@ export async function announceOrder(order: Order): Promise<void> {
   if (!enabled()) return console.log(`[telegram] disabled, skipped announcing order #${order.id}`);
   const msg = await botApi<{ message_id: number }>('sendMessage', { chat_id: env.groupId, ...orderMessage(order) });
   setOrderMessageId(order.id, msg.message_id);
+  // A native location message, as a reply to the order: tapping it opens the courier's maps app.
+  if (order.location) {
+    await botApi('sendLocation', {
+      chat_id: env.groupId,
+      latitude: order.location.lat,
+      longitude: order.location.lng,
+      reply_parameters: { message_id: msg.message_id },
+    });
+  }
   console.log(`[telegram] order #${order.id} posted to the group`);
 }
 
@@ -48,7 +57,6 @@ function orderMessage(order: Order) {
     '',
     `<a href="tg://user?id=${order.userId}">${esc(order.name)}</a>`,
     esc(order.phone),
-    esc(order.address),
   ];
   return {
     text: lines.join('\n'),
