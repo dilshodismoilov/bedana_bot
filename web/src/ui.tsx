@@ -5,7 +5,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { useLocation } from 'wouter-preact';
 import type { Order } from '../../shared/types.ts';
 import { money } from './format.ts';
-import { inTelegram, tg } from './tg.ts';
+import { inTelegram, repaintMainButton, tg } from './tg.ts';
 
 type MainButtonProps = { text: string; onClick: () => void; loading?: boolean; disabled?: boolean };
 
@@ -26,13 +26,14 @@ function NativeMainButton({ text, onClick, loading = false, disabled = false }: 
     };
   }, []);
 
-  // Layout effect: runs right after the render. A plain useEffect waits for the next frame, and inside
-  // Telegram (keyboard open) that could be postponed until the next render, so the button lagged one step
-  // behind the typed quantity.
+  // Set right after the render (a plain useEffect waits for the next frame), then send once more shortly
+  // after: some Telegram clients show a new text only when the next update arrives (see repaintMainButton).
   useLayoutEffect(() => {
     tg.MainButton.setParams({ text, is_visible: true, is_active: !disabled && !loading });
     if (loading) tg.MainButton.showProgress(false);
     else tg.MainButton.hideProgress();
+    const repaint = setTimeout(repaintMainButton, 150);
+    return () => clearTimeout(repaint);
   }, [text, loading, disabled]);
 
   return null;

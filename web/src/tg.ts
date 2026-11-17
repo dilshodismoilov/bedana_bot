@@ -22,6 +22,27 @@ export function alert(message: string): void {
   else window.alert(message);
 }
 
+/**
+ * Sends the main button's current state to Telegram again. Some Telegram clients apply a text change only
+ * when the next update arrives, so while typing a quantity the button showed the previous total. The SDK skips
+ * updates identical to the last one, so this posts the same payload it sends (built from the public getters).
+ */
+export function repaintMainButton() {
+  const mb = tg.MainButton;
+  if (!inTelegram || !mb.isVisible) return;
+  const webView = (window.Telegram as unknown as { WebView: { postEvent(e: string, cb: false, data: object): void } }).WebView;
+  webView.postEvent('web_app_setup_main_button', false, {
+    is_visible: true,
+    is_active: mb.isActive,
+    is_progress_visible: mb.isProgressVisible,
+    icon_custom_emoji_id: mb.iconCustomEmojiId,
+    text: mb.text,
+    color: mb.color,
+    text_color: mb.textColor,
+    has_shine_effect: mb.hasShineEffect && mb.isActive && !mb.isProgressVisible,
+  });
+}
+
 let askedWriteAccess = false;
 
 /**
