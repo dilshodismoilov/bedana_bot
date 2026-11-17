@@ -3,6 +3,9 @@ import type { Order } from '../shared/types.ts';
 import { env } from './env.ts';
 import { getOrderMessageId, setOrderMessageId } from './store.ts';
 
+/** Telegram rejected the call (as opposed to a network failure). */
+export class TelegramError extends Error {}
+
 export async function botApi<T = any>(method: string, body: object): Promise<T> {
   const res = await fetch(`https://api.telegram.org/bot${env.botToken}/${method}`, {
     method: 'POST',
@@ -10,7 +13,7 @@ export async function botApi<T = any>(method: string, body: object): Promise<T> 
     body: JSON.stringify(body),
   });
   const json = (await res.json()) as { ok: boolean; result: T; description?: string };
-  if (!json.ok) throw new Error(`Telegram ${method}: ${json.description}`);
+  if (!json.ok) throw new TelegramError(`Telegram ${method}: ${json.description}`);
   return json.result;
 }
 
@@ -21,6 +24,7 @@ export async function announceOrder(order: Order): Promise<void> {
   if (!enabled()) return console.log(`[telegram] disabled, skipped announcing order #${order.id}`);
   const msg = await botApi<{ message_id: number }>('sendMessage', { chat_id: env.groupId, ...orderMessage(order) });
   setOrderMessageId(order.id, msg.message_id);
+  console.log(`[telegram] order #${order.id} posted to the group`);
 }
 
 /** Re-renders the group message after the order changed (e.g. marked as paid). */

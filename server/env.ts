@@ -4,7 +4,8 @@ const dev = process.env.DEV === '1';
 
 export const env = {
   dev,
-  port: Number(process.env.PORT ?? 3000),
+  // Not PORT: many tools inject PORT for their own use, which would hijack the API port in dev.
+  port: Number(process.env.API_PORT ?? 3000),
   dataDir: process.env.DATA_DIR ?? 'data',
   botToken: process.env.BOT_TOKEN ?? '',
   groupId: process.env.GROUP_ID ?? '',

@@ -34,6 +34,7 @@ deploy/              systemd unit, Caddyfile, update script
 npm run check   # types
 npm test        # API
 npm run dev     # then open http://localhost:5173; DEV=1 in .env makes you an admin
+                # http://localhost:5173/?as=<id> acts as that Telegram user in this tab (customer view)
 ```
 
 For UI changes, check the affected screens in a mobile-sized browser viewport, in both light and dark. `npm run seed` fills an empty dev database.
@@ -49,4 +50,5 @@ For UI changes, check the affected screens in a mobile-sized browser viewport, i
 - **Language:** the UI and the bot messages are in Uzbek (Latin script). Write the apostrophe as a straight `'`.
 - **UI principle:** no helper labels, hints or explanatory text. If a screen needs one, fix the layout instead. Placeholders serve as field labels. Use Telegram's MainButton (via `ui.tsx`) for the screen's primary action and `BackButton to=...` with an explicit parent screen.
 - **Deep link:** the group message button opens `APP_LINK?startapp=order_<id>`. `main.tsx` turns that into the `/orders/<id>` route.
+- **Ports:** the server reads `API_PORT`, not `PORT`, because dev tools often inject `PORT` for themselves. Vite is pinned to 5173 with `strictPort`.
 - **Telegram limits:** `web_app` inline buttons don't work in groups, which is why the group message uses a `t.me` URL button.

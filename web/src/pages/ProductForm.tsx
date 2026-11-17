@@ -31,8 +31,10 @@ export function ProductForm({ id }: { id: number | null }) {
     const resized = await resizeImage(file);
     setImage(resized);
     setPreview(URL.createObjectURL(resized));
-    setInvalid((s) => (s.delete('image'), new Set(s)));
+    markValid('image');
   }
+
+  const markValid = (key: string) => setInvalid((s) => new Set([...s].filter((k) => k !== key)));
 
   async function save() {
     const bad = new Set<string>();
@@ -87,14 +89,20 @@ export function ProductForm({ id }: { id: number | null }) {
           class={invalid.has('name') ? 'invalid' : ''}
           placeholder="Nomi"
           value={name}
-          onInput={(e) => setName(e.currentTarget.value)}
+          onInput={(e) => {
+            setName(e.currentTarget.value);
+            markValid('name');
+          }}
         />
         <label class={`suffix-field ${invalid.has('price') ? 'invalid' : ''}`}>
           <input
             placeholder="Narxi"
             inputMode="numeric"
             value={price}
-            onInput={(e) => setPrice(e.currentTarget.value.replace(/\D/g, ''))}
+            onInput={(e) => {
+              setPrice(e.currentTarget.value.replace(/\D/g, ''));
+              markValid('price');
+            }}
           />
           <span class="muted">so'm</span>
         </label>

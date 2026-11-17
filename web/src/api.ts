@@ -11,8 +11,13 @@ export class ApiError extends Error {
 
 type Init = { method?: 'GET' | 'POST' | 'PUT' | 'DELETE'; json?: unknown; form?: FormData };
 
+// Local dev only (server with DEV=1): open http://localhost:5173/?as=<telegram user id> to act as that user in this tab.
+const devUser = import.meta.env.DEV ? (new URLSearchParams(location.search).get('as') ?? sessionStorage.getItem('as')) : null;
+if (devUser) sessionStorage.setItem('as', devUser);
+
 export async function api<T>(path: string, { method = 'GET', json, form }: Init = {}): Promise<T> {
   const headers: Record<string, string> = { Authorization: `tma ${tg.initData}` };
+  if (devUser) headers['x-dev-user'] = devUser;
   if (json !== undefined) headers['content-type'] = 'application/json';
   const res = await fetch(`/api${path}`, { method, headers, body: form ?? (json !== undefined ? JSON.stringify(json) : undefined) });
   const body = await res.json().catch(() => ({}));

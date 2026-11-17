@@ -19,9 +19,11 @@ npm run dev              # http://localhost:5173
 
 With `DEV=1`, requests that don't come from Telegram act as an admin user, so the whole app (shop and admin) works in a normal browser. Telegram's native buttons are replaced by in-page ones.
 
+To act as a specific user, open `http://localhost:5173/?as=<telegram user id>`. The choice is remembered per browser tab, so one tab can be a customer and another an admin. When `BOT_TOKEN` and `GROUP_ID` are set, admin rights come from real group membership, and orders are posted to the real group.
+
 | Command | Description |
 | --- | --- |
-| `npm run dev` | API on :3000 with auto-restart, plus Vite on :5173 with hot reload |
+| `npm run dev` | API on :3000 (`API_PORT`) with auto-restart, plus Vite on :5173 with hot reload |
 | `npm run check` | Typecheck everything |
 | `npm test` | API tests against a temporary database |
 | `npm run build` | Build the Mini App into `dist/` |

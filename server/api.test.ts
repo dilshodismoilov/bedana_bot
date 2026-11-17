@@ -46,6 +46,7 @@ test('product CRUD, order with server-side pricing, paid toggle', async () => {
   const updated = await call('PUT', `/products/${created.body.id}`, productForm('Bedana tuxumi', 1600, false));
   assert.equal(updated.body.price, 1600);
   assert.equal(updated.body.image, created.body.image);
+  assert.deepEqual(Object.keys(created.body).sort(), ['id', 'image', 'name', 'price'], 'no internal fields leak');
 
   const order = await call('POST', '/orders', {
     name: 'Ali',
@@ -71,6 +72,35 @@ test('product CRUD, order with server-side pricing, paid toggle', async () => {
 
   const stale = await call('POST', '/orders', { name: 'A', phone: '1', address: 'B', items: [{ productId: created.body.id, qty: 1 }] });
   assert.equal(stale.status, 400);
+});
+
+test('customers cannot use admin endpoints or see other customers orders', async () => {
+  const product = await call('POST', '/products', productForm('Tovuq tuxumi', 1800));
+  const asCustomer = (id: number) => ({ 'x-dev-user': String(id), 'content-type': 'application/json' });
+  const order = await app.request('/api/orders', {
+    method: 'POST',
+    headers: asCustomer(7),
+    body: JSON.stringify({ name: 'A', phone: '+998901234567', address: 'B', items: [{ productId: product.body.id, qty: 2, price: 1 }] }),
+  });
+  const created = (await order.json()) as any;
+  assert.equal(created.total, 3600, 'client-sent price is ignored');
+
+  for (const [method, path] of [['GET', '/api/admin/orders'], ['PUT', `/api/orders/${created.id}/paid`], ['DELETE', `/api/products/${product.body.id}`]]) {
+    const res = await app.request(path, { method, headers: asCustomer(7), body: method === 'PUT' ? '{"paid":true}' : undefined });
+    assert.equal(res.status, 403, `${method} ${path}`);
+  }
+  assert.equal((await app.request(`/api/orders/${created.id}`, { headers: asCustomer(8) })).status, 404);
+  assert.equal((await app.request(`/api/orders/${created.id}`, { headers: asCustomer(7) })).status, 200);
+});
+
+test('marking an order paid twice keeps the first payment time', async () => {
+  const product = await call('POST', '/products', productForm('Bedana', 100));
+  const order = await call('POST', '/orders', { name: 'A', phone: '+998901234567', address: 'B', items: [{ productId: product.body.id, qty: 1 }] });
+  const first = await call('PUT', `/orders/${order.body.id}/paid`, { paid: true });
+  await new Promise((r) => setTimeout(r, 5));
+  const second = await call('PUT', `/orders/${order.body.id}/paid`, { paid: true });
+  assert.equal(second.body.paidAt, first.body.paidAt);
+  assert.equal((await call('PUT', `/orders/${order.body.id}/paid`, { paid: false })).body.paidAt, null);
 });
 
 test('order validation', async () => {

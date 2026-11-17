@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { Hono } from 'hono';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { api } from './api.ts';
@@ -11,6 +12,10 @@ export const app = new Hono();
 
 app.route('/api', api);
 app.use('/uploads/*', serveStatic({ root: env.dataDir, onFound: immutable })); // file names are random UUIDs
-app.use('/assets/*', serveStatic({ root: 'dist', onFound: immutable })); // Vite hashes these
-app.use('*', serveStatic({ root: 'dist', onFound: noCache }));
-app.get('*', serveStatic({ path: 'dist/index.html', onFound: noCache })); // client-side routes
+
+// The built web app. In dev Vite serves it instead, so a missing dist/ is expected there.
+if (!env.dev || existsSync('dist')) {
+  app.use('/assets/*', serveStatic({ root: 'dist', onFound: immutable })); // Vite hashes these
+  app.use('*', serveStatic({ root: 'dist', onFound: noCache }));
+  app.get('*', serveStatic({ path: 'dist/index.html', onFound: noCache })); // client-side routes
+}

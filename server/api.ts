@@ -39,21 +39,23 @@ api.post('/products', adminOnly, imageUpload, async (c) => {
 });
 
 api.put('/products/:id', adminOnly, imageUpload, async (c) => {
-  const old = store.getProduct(Number(c.req.param('id')));
-  if (!old) return c.json({ error: 'Mahsulot topilmadi' }, 404);
+  const id = Number(c.req.param('id'));
+  const oldImage = store.getProductImageFile(id);
+  if (!oldImage) return c.json({ error: 'Mahsulot topilmadi' }, 404);
   const body = await c.req.parseBody();
   const fields = productFields(body);
-  const imageFile = body.image instanceof File ? await saveImage(body.image) : old.imageFile;
-  const product = store.updateProduct(old.id, { ...fields, imageFile });
-  if (imageFile !== old.imageFile) await removeImage(old.imageFile);
+  const imageFile = body.image instanceof File ? await saveImage(body.image) : oldImage;
+  const product = store.updateProduct(id, { ...fields, imageFile });
+  if (imageFile !== oldImage) await removeImage(oldImage);
   return c.json(product);
 });
 
 api.delete('/products/:id', adminOnly, async (c) => {
-  const old = store.getProduct(Number(c.req.param('id')));
-  if (!old) return c.json({ error: 'Mahsulot topilmadi' }, 404);
-  store.deleteProduct(old.id);
-  await removeImage(old.imageFile);
+  const id = Number(c.req.param('id'));
+  const image = store.getProductImageFile(id);
+  if (!image) return c.json({ error: 'Mahsulot topilmadi' }, 404);
+  store.deleteProduct(id);
+  await removeImage(image);
   return c.json({ ok: true });
 });
 

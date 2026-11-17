@@ -39,9 +39,15 @@ export function listProducts(): Product[] {
   return (db.prepare('SELECT * FROM products ORDER BY id').all() as Row[]).map(toProduct);
 }
 
-export function getProduct(id: number): (Product & { imageFile: string }) | null {
+export function getProduct(id: number): Product | null {
   const r = db.prepare('SELECT * FROM products WHERE id = ?').get(id) as Row | undefined;
-  return r ? { ...toProduct(r), imageFile: r.image } : null;
+  return r ? toProduct(r) : null;
+}
+
+/** File name inside DATA_DIR/uploads. Server-only; never sent to clients. */
+export function getProductImageFile(id: number): string | null {
+  const r = db.prepare('SELECT image FROM products WHERE id = ?').get(id) as Row | undefined;
+  return r?.image ?? null;
 }
 
 export function createProduct(p: { name: string; price: number; imageFile: string }): Product {
@@ -100,7 +106,9 @@ export function listAdminOrders(paidLimit = 50): Order[] {
 }
 
 export function setOrderPaid(id: number, paid: boolean): Order | null {
-  db.prepare('UPDATE orders SET paid_at = ? WHERE id = ?').run(paid ? new Date().toISOString() : null, id);
+  // COALESCE keeps the first payment time if two admins tap "paid" at once.
+  if (paid) db.prepare('UPDATE orders SET paid_at = COALESCE(paid_at, ?) WHERE id = ?').run(new Date().toISOString(), id);
+  else db.prepare('UPDATE orders SET paid_at = NULL WHERE id = ?').run(id);
   return getOrder(id);
 }
 

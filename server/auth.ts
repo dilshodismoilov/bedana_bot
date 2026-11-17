@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { createMiddleware } from 'hono/factory';
 import { env } from './env.ts';
-import { botApi } from './telegram.ts';
+import { botApi, TelegramError } from './telegram.ts';
 
 export type TgUser = { id: number; first_name: string; last_name?: string; username?: string };
 export type AuthEnv = { Variables: { user: TgUser } };
@@ -38,10 +38,13 @@ export function verifyInitData(initData: string, botToken: string, now = Date.no
   }
 }
 
-/** Requires `Authorization: tma <initData>`. In DEV mode a missing/invalid header falls back to DEV_USER. */
+/**
+ * Requires `Authorization: tma <initData>`.
+ * DEV mode only: without valid initData the request acts as the user in `X-Dev-User` (default DEV_USER, always admin).
+ */
 export const auth = createMiddleware<AuthEnv>(async (c, next) => {
   const initData = c.req.header('authorization')?.replace(/^tma /, '') ?? '';
-  const user = verifyInitData(initData, env.botToken) ?? (env.dev ? DEV_USER : null);
+  const user = verifyInitData(initData, env.botToken) ?? (env.dev ? devUser(c.req.header('x-dev-user')) : null);
   if (!user) return c.json({ error: 'Ilovani Telegram orqali qayta oching' }, 401);
   c.set('user', user);
   await next();
@@ -58,15 +61,25 @@ const ADMIN_CACHE_MS = 60_000;
 
 export async function isAdmin(userId: number): Promise<boolean> {
   if (env.dev && userId === DEV_USER.id) return true;
+  if (!env.botToken || !env.groupId) return false;
   const hit = adminCache.get(userId);
   if (hit && Date.now() - hit.at < ADMIN_CACHE_MS) return hit.admin;
+  let admin = false;
   try {
     const m = await botApi<{ status: string; is_member?: boolean }>('getChatMember', { chat_id: env.groupId, user_id: userId });
-    const admin = ['creator', 'administrator', 'member'].includes(m.status) || (m.status === 'restricted' && !!m.is_member);
-    adminCache.set(userId, { admin, at: Date.now() });
-    return admin;
+    admin = ['creator', 'administrator', 'member'].includes(m.status) || (m.status === 'restricted' && !!m.is_member);
   } catch (e) {
-    console.error('[auth] getChatMember failed', e);
-    return false; // not cached: retry on next request
+    // Telegram answered (e.g. "user not found"): a definite no, cache it. Network failure: retry next request.
+    if (!(e instanceof TelegramError)) {
+      console.error('[auth] getChatMember failed', e);
+      return false;
+    }
   }
+  adminCache.set(userId, { admin, at: Date.now() });
+  return admin;
+}
+
+function devUser(header: string | undefined): TgUser {
+  const id = Number(header);
+  return Number.isInteger(id) && id > 0 ? { id, first_name: `Dev ${id}` } : DEV_USER;
 }
