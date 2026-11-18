@@ -4,7 +4,16 @@ import assert from 'node:assert/strict';
 
 process.env.DEV = '1';
 process.env.GROUP_ID = '-1001234567890';
-const { isCommand, hereReply } = await import('./bot.ts');
+process.env.APP_LINK = 'https://t.me/shop_bot';
+const { isCommand, hereReply, startReply } = await import('./bot.ts');
+
+test('startReply greets by first name and links to the shop', () => {
+  const r = startReply('Ali');
+  assert.match(r.text, /^Assalomu alaykum, Ali! 👋\n/);
+  assert.match(startReply(undefined).text, /^Assalomu alaykum! 👋/);
+  assert.equal(r.reply_markup?.inline_keyboard[0][0].url, 'https://t.me/shop_bot?startapp');
+  assert.ok(isCommand('/start', 'start', 'shop_bot') && isCommand('/start order_5', 'start', 'shop_bot'), 'deep-link payloads still greet');
+});
 
 test('isCommand matches the command only for this bot', () => {
   const yes = ['/here', '/here@shop_bot', '/HERE', '/here@Shop_Bot', '/here please'];

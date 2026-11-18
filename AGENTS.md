@@ -15,7 +15,7 @@ server/
   db.ts              connection + append-only migrations (PRAGMA user_version)
   auth.ts            Telegram initData verification; admin = member of the orders group
   telegram.ts        outgoing Bot API calls: group order message and its edits
-  bot.ts             incoming bot commands via long polling (/here replies with the chat id)
+  bot.ts             incoming bot commands via long polling (/start greets with a shop button, /here replies with the chat id)
   env.ts             config from env vars
   api.test.ts        end-to-end API tests (temp DB, DEV mode)
   bot.test.ts        command parsing

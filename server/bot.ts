@@ -3,7 +3,12 @@
 import { env } from './env.ts';
 import { botApi, TelegramError } from './telegram.ts';
 
-type Message = { message_id: number; text?: string; chat: { id: number; type: string; title?: string } };
+type Message = {
+  message_id: number;
+  text?: string;
+  chat: { id: number; type: string; title?: string };
+  from?: { first_name?: string };
+};
 type Update = { update_id: number; message?: Message };
 
 /** True if `text` is `/name` or `/name@<this bot>`, optionally followed by arguments. */
@@ -18,7 +23,23 @@ export function hereReply(chatId: number): string {
   return `<code>GROUP_ID=${chatId}</code>${connected}`;
 }
 
+/**
+ * Reply to /start in a private chat: a short greeting and a button that opens the shop.
+ * Plain text (no parse_mode), so the user's name needs no escaping.
+ */
+export function startReply(firstName: string | undefined) {
+  return {
+    text: `Assalomu alaykum${firstName ? `, ${firstName}` : ''}! 👋\nDo'konimizga xush kelibsiz. Mahsulotlarni ko'rib, buyurtma berish uchun quyidagi tugmani bosing.`,
+    // A t.me link opens the bot's Mini App (set in BotFather), like the Ochish button on orders.
+    reply_markup: env.appLink ? { inline_keyboard: [[{ text: "🛒 Do'konni ochish", url: `${env.appLink}?startapp` }]] } : undefined,
+  };
+}
+
 async function handle(message: Message, botUsername: string) {
+  if (message.chat.type === 'private' && isCommand(message.text, 'start', botUsername)) {
+    await botApi('sendMessage', { chat_id: message.chat.id, ...startReply(message.from?.first_name) });
+    return;
+  }
   const inGroup = message.chat.type === 'group' || message.chat.type === 'supergroup';
   if (inGroup && isCommand(message.text, 'here', botUsername)) {
     await botApi('sendMessage', {
