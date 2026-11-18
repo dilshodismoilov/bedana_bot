@@ -7,6 +7,7 @@ A Telegram Mini App shop with a customer side and an admin side. Read README.md 
 ```
 shared/types.ts      API contract: the types server and web both use. Start here.
 shared/units.ts      sale units (dona, kg, pachka): labels, quantity steps, line totals
+shared/delivery.ts   pickup branches, delivery areas, shop phone, Yandex Maps links
 server/
   main.ts            starts the HTTP server
   app.ts             mounts /api, static files, SPA fallback, cache headers
@@ -60,7 +61,8 @@ For UI changes, check the affected screens in a mobile-sized browser viewport, i
 - **Deep link:** the group message button opens `APP_LINK?startapp=order_<id>`. `main.tsx` turns that into the `/orders/<id>` route.
 - **Ports:** the server reads `API_PORT`, not `PORT`, because dev tools often inject `PORT` for themselves. Vite is pinned to 5173 with `strictPort`.
 - **Order statuses** are independent timestamps (`paid_at`, `completed_at`); an order is closed when all are set. To add one: a migration column, `OrderStatus` in `shared/types.ts`, `STATUS_COLUMN` in `store.ts`, the route list in `api.ts`, `STATUS_TEXT` in `pages/Order.tsx`, and the status line in `telegram.ts`.
-- **Delivery location** is a map pin (`location: {lat, lng}`), not an address. Map tiles come from OpenStreetMap's public tile server, which is fine for a small shop; if traffic grows, switch the tile URL in `map.tsx` to a paid provider. The group gets a native Telegram location message as a reply to each order.
+- **Pickup or delivery:** every new order has a `fulfillment` id from `shared/delivery.ts` (stored as text, so never rename an id; add new ones). Pickup options name a branch and need no customer location (`location` is null); every other option requires the map pin. Branch coordinates, labels and the shop phone are edited there, and the cart, order page and bot messages all read them from there.
+- **Delivery location** is a map pin (`location: {lat, lng}`), not an address. Map links open Yandex Maps (`yandexMapUrl()`). Map tiles come from OpenStreetMap's public tile server, which is fine for a small shop; if traffic grows, switch the tile URL in `map.tsx` to a paid provider. The group gets a native Telegram location message as a reply to each order.
 - **Bot commands:** add a handler in `bot.ts` `handle()`. Polling starts from `main.ts` only, so tests never talk to Telegram. One poller per bot token: a second process gets "Conflict" errors.
 - **Telegram limits:** `web_app` inline buttons don't work in groups, which is why the group message uses a `t.me` URL button. A bot can only message a user privately after they started it or allowed it: checkout calls `allowBotMessages()` (`tg.ts`) first, and `notifyCustomer()` treats Telegram's refusal as normal.
 - **Local dev with the real bot token:** run with `BOT_TOKEN=` (empty, overrides `.env`) when the production server is running, or the two pollers conflict.

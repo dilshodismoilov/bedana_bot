@@ -59,6 +59,7 @@ test('product CRUD, order with server-side pricing, paid toggle', async () => {
   const order = await call('POST', '/orders', {
     name: 'Ali',
     phone: '+998 90 123 45 67',
+    fulfillment: 'delivery_tashkent',
     location: { lat: 41.311081, lng: 69.240562 },
     items: [{ productId: created.body.id, qty: 30 }],
   });
@@ -67,7 +68,7 @@ test('product CRUD, order with server-side pricing, paid toggle', async () => {
   assert.deepEqual(order.body.items, [{ productId: created.body.id, name: 'Bedana tuxumi', price: 1600, unit: 'piece', qty: 30 }]);
 
   const me = await call('GET', '/me');
-  assert.deepEqual(me.body, { isAdmin: true, ordersCount: 1, contact: { name: 'Ali', phone: '+998 90 123 45 67', location: { lat: 41.311081, lng: 69.240562 } } });
+  assert.deepEqual(me.body, { isAdmin: true, ordersCount: 1, contact: { name: 'Ali', phone: '+998 90 123 45 67', fulfillment: 'delivery_tashkent', location: { lat: 41.311081, lng: 69.240562 } } });
 
   const paid = await call('PUT', `/orders/${order.body.id}/paid`, { paid: true });
   assert.ok(paid.body.paidAt);
@@ -78,7 +79,7 @@ test('product CRUD, order with server-side pricing, paid toggle', async () => {
   assert.equal(after.body.items[0].productId, null);
   assert.equal(after.body.items[0].name, 'Bedana tuxumi');
 
-  const stale = await call('POST', '/orders', { name: 'A', phone: '1', location: HERE, items: [{ productId: created.body.id, qty: 1 }] });
+  const stale = await call('POST', '/orders', { name: 'A', phone: '1', fulfillment: 'delivery_tashkent', location: HERE, items: [{ productId: created.body.id, qty: 1 }] });
   assert.equal(stale.status, 400);
 });
 
@@ -89,7 +90,7 @@ test('products sold by the kilogram take 100 g steps; pieces stay whole', async 
   assert.equal(eggs.body.unit, 'piece');
   assert.equal((await call('POST', '/products', productForm('X', 1, ['new'], '', 'litr'))).status, 400);
 
-  const place = (items: { productId: number; qty: unknown }[]) => call('POST', '/orders', { name: 'A', phone: '1', location: HERE, items });
+  const place = (items: { productId: number; qty: unknown }[]) => call('POST', '/orders', { name: 'A', phone: '1', fulfillment: 'delivery_tashkent', location: HERE, items });
   const order = await place([
     { productId: meat.body.id, qty: 1.5 },
     { productId: eggs.body.id, qty: 10 },
@@ -126,7 +127,7 @@ test('packs: own price, whole packs only, only for products sold by the piece', 
   const kg = await call('POST', '/products', productForm('Y', 1, ['new'], '', 'kg', ['10', '5']));
   assert.equal(kg.body.pack, null, 'kg products have no pack');
 
-  const place = (items: object[]) => call('POST', '/orders', { name: 'A', phone: '1', location: HERE, items });
+  const place = (items: object[]) => call('POST', '/orders', { name: 'A', phone: '1', fulfillment: 'delivery_tashkent', location: HERE, items });
   const order = await place([
     { productId: quail.body.id, qty: 2, pack: true },
     { productId: quail.body.id, qty: 3 },
@@ -185,7 +186,7 @@ test('customers cannot use admin endpoints or see other customers orders', async
   const order = await app.request('/api/orders', {
     method: 'POST',
     headers: asCustomer(7),
-    body: JSON.stringify({ name: 'A', phone: '+998901234567', location: HERE, items: [{ productId: product.body.id, qty: 2, price: 1 }] }),
+    body: JSON.stringify({ name: 'A', phone: '+998901234567', fulfillment: 'delivery_tashkent', location: HERE, items: [{ productId: product.body.id, qty: 2, price: 1 }] }),
   });
   const created = (await order.json()) as any;
   assert.equal(created.total, 3600, 'client-sent price is ignored');
@@ -205,7 +206,7 @@ test('customers cannot use admin endpoints or see other customers orders', async
 
 test('marking an order paid twice keeps the first payment time', async () => {
   const product = await call('POST', '/products', productForm('Bedana', 100));
-  const order = await call('POST', '/orders', { name: 'A', phone: '+998901234567', location: HERE, items: [{ productId: product.body.id, qty: 1 }] });
+  const order = await call('POST', '/orders', { name: 'A', phone: '+998901234567', fulfillment: 'delivery_tashkent', location: HERE, items: [{ productId: product.body.id, qty: 1 }] });
   const first = await call('PUT', `/orders/${order.body.id}/paid`, { paid: true });
   await new Promise((r) => setTimeout(r, 5));
   const second = await call('PUT', `/orders/${order.body.id}/paid`, { paid: true });
@@ -216,7 +217,7 @@ test('marking an order paid twice keeps the first payment time', async () => {
 test('completed is independent of paid; admin list shows open orders before closed ones', async () => {
   const product = await call('POST', '/products', productForm('Bedana', 100));
   const place = async () =>
-    (await call('POST', '/orders', { name: 'A', phone: '+998901234567', location: HERE, items: [{ productId: product.body.id, qty: 1 }] })).body;
+    (await call('POST', '/orders', { name: 'A', phone: '+998901234567', fulfillment: 'delivery_tashkent', location: HERE, items: [{ productId: product.body.id, qty: 1 }] })).body;
   const closed = await place();
   const deliveredUnpaid = await place();
   const fresh = await place();
@@ -239,16 +240,80 @@ test('completed is independent of paid; admin list shows open orders before clos
 });
 
 test('order validation', async () => {
-  const res = await call('POST', '/orders', { name: '', phone: '1', location: HERE, items: [{ productId: 1, qty: 1 }] });
+  const res = await call('POST', '/orders', { name: '', phone: '1', fulfillment: 'delivery_tashkent', location: HERE, items: [{ productId: 1, qty: 1 }] });
   assert.equal(res.status, 400);
   assert.equal(res.body.error, 'Ismingizni kiriting');
 
-  const order = (location: unknown) => call('POST', '/orders', { name: 'A', phone: '+998901234567', location, items: [{ productId: 1, qty: 1 }] });
+  const order = (location: unknown) =>
+    call('POST', '/orders', { name: 'A', phone: '+998901234567', fulfillment: 'delivery_valley', location, items: [{ productId: 1, qty: 1 }] });
   for (const bad of [undefined, null, {}, { lat: 41 }, { lat: 91, lng: 69 }, { lat: 41, lng: 181 }, { lat: 'x', lng: 69 }]) {
     const r = await order(bad);
     assert.equal(r.status, 400, JSON.stringify(bad));
     assert.equal(r.body.error, 'Yetkazib berish joyini xaritada belgilang');
   }
+
+  for (const fulfillment of [undefined, '', 'pickup', 'delivery']) {
+    const r = await call('POST', '/orders', { name: 'A', phone: '+998901234567', fulfillment, location: HERE, items: [{ productId: 1, qty: 1 }] });
+    assert.equal(r.body.error, 'Olib ketish yoki yetkazib berishni tanlang', String(fulfillment));
+  }
+});
+
+test('pickup orders need no location; the customer message says where to collect or where it goes', async () => {
+  const { customerMessage, orderMessage } = await import('./telegram.ts');
+  const product = await call('POST', '/products', productForm("Bedana go'shti", 0, ['new'], '', 'piece', ['10', '70000']));
+
+  // A location sent with a pickup order (e.g. left in the draft from an earlier delivery) is dropped.
+  const pickup = await call('POST', '/orders', {
+    name: 'A',
+    phone: '+998901234567',
+    fulfillment: 'pickup_fergana',
+    location: HERE,
+    items: [{ productId: product.body.id, qty: 1, pack: true }],
+  });
+  assert.equal(pickup.status, 201);
+  assert.equal(pickup.body.fulfillment, 'pickup_fergana');
+  assert.equal(pickup.body.location, null);
+
+  const id = pickup.body.id;
+  assert.equal(
+    customerMessage(pickup.body).text,
+    [
+      '✅ Buyurtmangiz muvaffaqiyatli qabul qilindi!',
+      '',
+      `Buyurtma raqami: #${id}`,
+      "Mahsulot: Bedana go'shti (1 pachka)",
+      "Jami summa: 70 000 so'm",
+      '',
+      "🏠 O'zim olib ketaman — Farg'ona",
+      `📍 Olib ketish manzili: <a href="https://yandex.uz/maps/?pt=71.765691,40.424093&amp;z=17&amp;l=map">Farg'ona filiali</a>`,
+      '',
+      "🕐 Operatorimiz tez orada (5-10 daqiqa ichida) siz bilan bog'lanib, olib ketish vaqtini va to'lov usulini tasdiqlaydi.",
+      '',
+      "📞 Savollaringiz bo'lsa: +998 93 976 15 45",
+      'Xaridingiz uchun rahmat! 🤝',
+    ].join('\n'),
+  );
+  assert.ok(!orderMessage(pickup.body).text.includes('📍'), 'the group gets no map for a pickup');
+
+  const delivery = await call('POST', '/orders', {
+    name: 'A',
+    phone: '+998901234567',
+    fulfillment: 'delivery_valley',
+    location: { lat: 40.38, lng: 71.78 },
+    items: [
+      { productId: product.body.id, qty: 2, pack: true },
+      { productId: product.body.id, qty: 1, pack: true },
+    ],
+  });
+  const text = customerMessage(delivery.body).text;
+  for (const part of [
+    "Mahsulotlar:\n• Bedana go'shti (2 pachka)\n• Bedana go'shti (1 pachka)\nJami summa: 210 000 so'm",
+    "🚚 Yetkazib berish — Farg'ona vodiysi (Farg'ona/Andijon/Namangan)\n📍 Shu manzilga yetkazib beriladi: <a href=\"https://yandex.uz/maps/?pt=71.78,40.38&amp;",
+    "🚚 Operatorimiz tez orada (5-10 daqiqa ichida) siz bilan bog'lanib, yetkazib berish vaqtini va to'lov usulini tasdiqlaydi.",
+  ]) {
+    assert.ok(text.includes(part), part);
+  }
+  assert.ok(orderMessage(delivery.body).text.includes("Namangan)\n📍 <a href=\"https://yandex.uz/maps/?pt=71.78,40.38&amp;"));
 });
 
 test('verifyInitData accepts genuine data and rejects tampering/expiry', () => {

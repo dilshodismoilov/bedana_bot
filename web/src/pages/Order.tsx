@@ -1,4 +1,5 @@
 import { useState } from 'preact/hooks';
+import { FULFILLMENTS, pickupBranch } from '../../../shared/delivery.ts';
 import type { Me, Order, OrderStatus } from '../../../shared/types.ts';
 import { api, useApi } from '../api.ts';
 import { lineTotal, qtyText } from '../../../shared/units.ts';
@@ -29,6 +30,8 @@ export function OrderPage({ id }: { id: number }) {
   }
 
   const o = order.data;
+  const option = o?.fulfillment && FULFILLMENTS[o.fulfillment];
+  const branch = o?.fulfillment && pickupBranch(o.fulfillment);
   return (
     <div class="page">
       <BackButton to={isAdmin ? '/admin' : '/orders'} />
@@ -95,9 +98,18 @@ export function OrderPage({ id }: { id: number }) {
             <a class="row link" href={`tel:${o.phone.replace(/[^\d+]/g, '')}`}>
               {o.phone}
             </a>
+            {option && (
+              <div class="row">
+                <span class="choice-icon">{option.icon}</span>
+                <div class="row-main">
+                  <div>{option.title}</div>
+                  {option.note && <div class="muted">{option.note}</div>}
+                </div>
+              </div>
+            )}
           </section>
 
-          {o.location && <LocationPreview value={o.location} />}
+          {branch ? <LocationPreview value={branch.location} /> : o.location && <LocationPreview value={o.location} />}
         </>
       )}
     </div>

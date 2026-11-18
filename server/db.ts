@@ -66,6 +66,8 @@ const migrations = [
   ALTER TABLE products ADD COLUMN pack_size INTEGER;
   ALTER TABLE products ADD COLUMN pack_price INTEGER;
   `,
+  // Pickup branch or delivery area (a Fulfillment id from shared/delivery.ts). Pickup orders have no lat/lng.
+  `ALTER TABLE orders ADD COLUMN fulfillment TEXT;`,
 ];
 
 const { user_version } = db.prepare('PRAGMA user_version').get() as { user_version: number };

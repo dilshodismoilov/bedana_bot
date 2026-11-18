@@ -1,4 +1,5 @@
 // Types shared by server and web. Money is always integer so'm.
+import type { Fulfillment } from './delivery.ts';
 
 /** How a product is sold and priced: per piece, or per kilogram (quantities in 100 g steps). See units.ts. */
 export type Unit = 'piece' | 'kg';
@@ -23,7 +24,8 @@ export type LatLng = { lat: number; lng: number };
 export type Contact = {
   name: string;
   phone: string;
-  location: LatLng | null; // delivery point; required for new orders, null only on orders from before locations existed
+  fulfillment: Fulfillment | null; // pickup branch or delivery area (see delivery.ts); null only on orders from before it existed
+  location: LatLng | null; // delivery point; null for pickup and on orders from before locations existed
 };
 
 export type OrderItem = {
@@ -47,8 +49,9 @@ export type Order = Contact & {
 /** Order statuses an admin can switch on and off. */
 export type OrderStatus = 'paid' | 'completed';
 
-export type NewOrder = Omit<Contact, 'location'> & {
-  location: LatLng;
+export type NewOrder = Omit<Contact, 'fulfillment'> & {
+  fulfillment: Fulfillment;
+  location: LatLng | null; // required unless picked up at a branch
   items: { productId: number; qty: number; pack?: boolean }[]; // pack: qty is a number of packs
 };
 

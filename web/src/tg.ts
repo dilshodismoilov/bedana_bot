@@ -1,6 +1,7 @@
 // Thin wrapper over the Telegram WebApp SDK (loaded by index.html).
 // Outside Telegram (local dev in a browser) `inTelegram` is false and native UI is replaced by HTML fallbacks.
 
+import { yandexMapUrl } from '../../shared/delivery.ts';
 import type { LatLng } from '../../shared/types.ts';
 
 export const tg = window.Telegram.WebApp;
@@ -99,8 +100,8 @@ function browserLocation(): Promise<LatLng | null> {
 }
 
 /** Opens a point in Yandex Maps. */
-export function openMap({ lat, lng }: LatLng) {
-  const url = `https://yandex.uz/maps/?pt=${lng},${lat}&z=17&l=map`;
+export function openMap(point: LatLng) {
+  const url = yandexMapUrl(point);
   if (inTelegram) tg.openLink(url);
   else window.open(url, '_blank');
 }

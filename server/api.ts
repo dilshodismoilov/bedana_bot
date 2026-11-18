@@ -3,7 +3,8 @@ import { bodyLimit } from 'hono/body-limit';
 import { randomUUID } from 'node:crypto';
 import { unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { Me, NewOrder, OrderStatus, Pack } from '../shared/types.ts';
+import { isFulfillment, pickupBranch } from '../shared/delivery.ts';
+import type { LatLng, Me, NewOrder, OrderStatus, Pack } from '../shared/types.ts';
 import { isUnit, MAX_QTY } from '../shared/units.ts';
 import { adminOnly, auth, isAdmin, type AuthEnv } from './auth.ts';
 import { uploadsDir } from './db.ts';
@@ -127,7 +128,7 @@ function quantity(value: unknown): number {
   return value;
 }
 
-function location(value: any): { lat: number; lng: number } {
+function location(value: any): LatLng {
   const lat = Number(value?.lat);
   const lng = Number(value?.lng);
   const ok = value?.lat != null && value?.lng != null && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
@@ -154,10 +155,12 @@ function productFields(body: Record<string, unknown>) {
 function parseNewOrder(body: any): NewOrder {
   const items = Array.isArray(body?.items) ? body.items : [];
   if (!items.length || items.length > 100) throw new store.UserError("Savat bo'sh");
+  const fulfillment = isFulfillment(body.fulfillment) ? body.fulfillment : fail('Olib ketish yoki yetkazib berishni tanlang');
   return {
     name: text(body.name, 100, 'Ismingizni kiriting'),
     phone: text(body.phone, 30, 'Telefon raqamingizni kiriting'),
-    location: location(body.location),
+    fulfillment,
+    location: pickupBranch(fulfillment) ? null : location(body.location), // a pickup needs no customer location
     items: items.map((i: any) => ({
       productId: int(i?.productId, 1, Number.MAX_SAFE_INTEGER, 'Savatda xatolik'),
       qty: quantity(i?.qty), // checked against the product's unit when the order is created

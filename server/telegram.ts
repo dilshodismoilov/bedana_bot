@@ -1,5 +1,6 @@
 // Outgoing Telegram Bot API calls. Incoming commands (e.g. /here) are handled in bot.ts.
-import type { Order } from '../shared/types.ts';
+import { fulfillmentText, pickupBranch, SHOP_PHONE, yandexMapUrl } from '../shared/delivery.ts';
+import type { LatLng, Order } from '../shared/types.ts';
 import { lineTotal, qtyText } from '../shared/units.ts';
 import { env } from './env.ts';
 import { getOrderMessageId, setOrderMessageId } from './store.ts';
@@ -25,7 +26,7 @@ export async function announceOrder(order: Order): Promise<void> {
   if (!enabled()) return console.log(`[telegram] disabled, skipped announcing order #${order.id}`);
   const msg = await botApi<{ message_id: number }>('sendMessage', { chat_id: env.groupId, ...orderMessage(order) });
   setOrderMessageId(order.id, msg.message_id);
-  // A native location message, as a reply to the order: tapping it opens the courier's maps app.
+  // Delivery: a native location message, as a reply to the order, so the map shows right in the group.
   if (order.location) {
     await botApi('sendLocation', {
       chat_id: env.groupId,
@@ -63,7 +64,8 @@ export async function refreshOrderMessage(order: Order): Promise<void> {
   }
 }
 
-function orderMessage(order: Order) {
+/** Exported for tests. */
+export function orderMessage(order: Order) {
   const status = (order.paidAt ? "✅ To'langan" : "🟡 To'lanmagan") + (order.completedAt ? ' · 📦 Bajarildi' : '');
   const lines = [
     `<b>Buyurtma #${order.id}</b> · ${money(order.total)}`,
@@ -71,21 +73,42 @@ function orderMessage(order: Order) {
     '',
     ...itemLines(order),
     '',
+    ...(order.fulfillment ? [fulfillmentText(order.fulfillment)] : []),
+    ...(order.location ? [`📍 ${mapLink(order.location, 'Yandex xarita')}`] : []),
     `<a href="tg://user?id=${order.userId}">${esc(order.name)}</a>`,
     esc(order.phone),
   ];
   return htmlWithOpenButton(lines, order.id);
 }
 
-function customerMessage(order: Order) {
+/** The confirmation the customer gets in their private chat. Wording from the shop. Exported for tests. */
+export function customerMessage(order: Order) {
+  const branch = order.fulfillment && pickupBranch(order.fulfillment);
+  const products = order.items.map((i) => `${esc(i.name)} (${qtyText(i.qty, i.unit)})`);
   const lines = [
-    "✅ Buyurtmangiz qabul qilindi. Tez orada siz bilan bog'lanamiz.",
+    '✅ Buyurtmangiz muvaffaqiyatli qabul qilindi!',
     '',
-    `<b>Buyurtma #${order.id}</b> · ${money(order.total)}`,
-    ...itemLines(order),
+    `Buyurtma raqami: #${order.id}`,
+    ...(products.length === 1 ? [`Mahsulot: ${products[0]}`] : ['Mahsulotlar:', ...products.map((p) => `• ${p}`)]),
+    `Jami summa: ${money(order.total)}`,
+    '',
+    ...(order.fulfillment ? [fulfillmentText(order.fulfillment)] : []),
+    ...(branch ? [`📍 Olib ketish manzili: ${mapLink(branch.location, `${branch.name} filiali`)}`] : []),
+    ...(order.location ? [`📍 Shu manzilga yetkazib beriladi: ${mapLink(order.location, "Xaritada ko'rish")}`] : []),
+    '',
+    branch
+      ? "🕐 Operatorimiz tez orada (5-10 daqiqa ichida) siz bilan bog'lanib, olib ketish vaqtini va to'lov usulini tasdiqlaydi."
+      : order.fulfillment === 'other'
+        ? "🚚 Operatorimiz tez orada (5-10 daqiqa ichida) siz bilan bog'lanib, yetkazib berish shartlari va to'lov usulini kelishib oladi."
+        : "🚚 Operatorimiz tez orada (5-10 daqiqa ichida) siz bilan bog'lanib, yetkazib berish vaqtini va to'lov usulini tasdiqlaydi.",
+    '',
+    `📞 Savollaringiz bo'lsa: ${SHOP_PHONE}`,
+    'Xaridingiz uchun rahmat! 🤝',
   ];
   return htmlWithOpenButton(lines, order.id);
 }
+
+const mapLink = (p: LatLng, text: string) => `<a href="${esc(yandexMapUrl(p))}">${esc(text)}</a>`;
 
 const itemLines = (order: Order) =>
   order.items.map((i) => `${esc(i.name)}: ${qtyText(i.qty, i.unit)} × ${num(i.price)} = ${money(lineTotal(i.price, i.qty))}`);

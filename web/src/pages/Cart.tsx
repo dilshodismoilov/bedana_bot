@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'preact/hooks';
 import { useLocation } from 'wouter-preact';
+import { FULFILLMENT_IDS, FULFILLMENTS, pickupBranch } from '../../../shared/delivery.ts';
 import type { Contact, Me, Order, Product } from '../../../shared/types.ts';
 import { api, prime, useApi } from '../api.ts';
 import { cartLines, clearCart, draft, linesTotal, setQty } from '../cart.ts';
 import { lineTotal } from '../../../shared/units.ts';
 import { money } from '../format.ts';
-import { LocationPicker } from '../map.tsx';
+import { LocationPicker, LocationPreview } from '../map.tsx';
 import { alert, allowBotMessages, haptic, tg } from '../tg.ts';
 import { BackButton, MainButton, QtyInput, Status, UnitPrice } from '../ui.tsx';
 
@@ -14,7 +15,8 @@ function invalidFields(c: Contact): (keyof Contact)[] {
   const bad: (keyof Contact)[] = [];
   if (!c.name.trim()) bad.push('name');
   if (c.phone.replace(/\D/g, '').length < 9) bad.push('phone');
-  if (!c.location) bad.push('location');
+  if (!c.fulfillment) bad.push('fulfillment');
+  else if (!pickupBranch(c.fulfillment) && !c.location) bad.push('location');
   return bad;
 }
 
@@ -31,9 +33,9 @@ export function Cart() {
 
   // Prefill from the last order, or from the Telegram profile on the first order.
   useEffect(() => {
-    if (!me.data || form.name || form.phone || form.location) return;
+    if (!me.data || form.name || form.phone || form.fulfillment || form.location) return;
     const u = tg.initDataUnsafe.user;
-    draft.value = me.data.contact ?? { name: [u?.first_name, u?.last_name].filter(Boolean).join(' '), phone: '', location: null };
+    draft.value = me.data.contact ?? { name: [u?.first_name, u?.last_name].filter(Boolean).join(' '), phone: '', fulfillment: null, location: null };
   }, [me.data]);
 
   // Emptied the cart from here: nothing left to check out.
@@ -52,7 +54,7 @@ export function Cart() {
     if (bad.length) {
       haptic.error();
       setInvalid(Object.fromEntries(bad.map((k) => [k, true])));
-      if (bad[0] === 'location') document.getElementById('location')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (bad[0] === 'fulfillment' || bad[0] === 'location') document.getElementById(bad[0])?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       else document.querySelector<HTMLElement>(`[name=${bad[0]}]`)?.focus();
       return;
     }
@@ -76,6 +78,9 @@ export function Cart() {
   }
 
   if (!products.data) return <Status error={products.error} />;
+
+  const option = form.fulfillment && FULFILLMENTS[form.fulfillment];
+  const branch = form.fulfillment && pickupBranch(form.fulfillment);
 
   return (
     <div class="page">
@@ -113,7 +118,35 @@ export function Cart() {
         />
       </section>
 
-      <LocationPicker value={form.location} onChange={(p) => update('location', p)} invalid={invalid.location} />
+      <section class={`card list choices ${invalid.fulfillment ? 'invalid' : ''}`} id="fulfillment" role="radiogroup">
+        {FULFILLMENT_IDS.map((f) => (
+          <label class="row choice" key={f}>
+            <span class="choice-icon">{FULFILLMENTS[f].icon}</span>
+            <div class="row-main">
+              <div>{FULFILLMENTS[f].title}</div>
+              {FULFILLMENTS[f].note && <div class="muted">{FULFILLMENTS[f].note}</div>}
+            </div>
+            <input
+              type="radio"
+              class="radio"
+              name="fulfillment"
+              checked={form.fulfillment === f}
+              onChange={() => {
+                update('fulfillment', f);
+                haptic.tap();
+              }}
+            />
+          </label>
+        ))}
+      </section>
+
+      {branch ? (
+        <LocationPreview value={branch.location} />
+      ) : (
+        option && (
+          <LocationPicker value={form.location} center={option.center} onChange={(p) => update('location', p)} invalid={invalid.location} />
+        )
+      )}
 
       <MainButton text={`Buyurtma berish · ${money(total)}`} onClick={submit} loading={sending} />
     </div>

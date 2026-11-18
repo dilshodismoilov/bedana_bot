@@ -365,6 +365,38 @@ h1 {
   color: var(--link);
 }
 
+/* ---------- pickup / delivery choice ---------- */
+
+.choice {
+  cursor: pointer;
+}
+
+.choice-icon {
+  flex: none;
+  font-size: 20px;
+}
+
+/* Outlined instead of red text, so the options stay readable while the choice is missing. */
+.choices.invalid {
+  color: inherit;
+  outline: 2px solid var(--danger);
+}
+
+.radio {
+  appearance: none;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  border-radius: 50%;
+  border: 2px solid var(--hint);
+  transition: border 0.15s;
+}
+
+.radio:checked {
+  border: 7px solid var(--accent);
+}
+
 /* ---------- maps ---------- */
 
 .map {

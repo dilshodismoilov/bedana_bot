@@ -30,6 +30,7 @@ const toOrder = (r: Row): Order => ({
   userId: r.user_id,
   name: r.name,
   phone: r.phone,
+  fulfillment: r.fulfillment,
   location: toLocation(r),
   total: r.total,
   paidAt: r.paid_at,
@@ -103,8 +104,8 @@ export function createOrder(userId: number, input: NewOrder): Order {
     const total = items.reduce((sum, i) => sum + lineTotal(i.price, i.qty), 0);
 
     const { lastInsertRowid } = db
-      .prepare('INSERT INTO orders (user_id, name, phone, lat, lng, total, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .run(userId, input.name, input.phone, input.location.lat, input.location.lng, total, new Date().toISOString());
+      .prepare('INSERT INTO orders (user_id, name, phone, fulfillment, lat, lng, total, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(userId, input.name, input.phone, input.fulfillment, input.location?.lat ?? null, input.location?.lng ?? null, total, new Date().toISOString());
     const orderId = Number(lastInsertRowid);
 
     const insertItem = db.prepare('INSERT INTO order_items (order_id, product_id, name, price, unit, qty) VALUES (?, ?, ?, ?, ?, ?)');
@@ -154,7 +155,7 @@ export function getOrderMessageId(id: number): number | null {
 
 export function userStats(userId: number): { ordersCount: number; contact: Contact | null } {
   const r = db
-    .prepare('SELECT name, phone, lat, lng, (SELECT COUNT(*) FROM orders WHERE user_id = ?) AS n FROM orders WHERE user_id = ? ORDER BY id DESC LIMIT 1')
+    .prepare('SELECT name, phone, fulfillment, lat, lng, (SELECT COUNT(*) FROM orders WHERE user_id = ?) AS n FROM orders WHERE user_id = ? ORDER BY id DESC LIMIT 1')
     .get(userId, userId) as Row | undefined;
-  return r ? { ordersCount: r.n, contact: { name: r.name, phone: r.phone, location: toLocation(r) } } : { ordersCount: 0, contact: null };
+  return r ? { ordersCount: r.n, contact: { name: r.name, phone: r.phone, fulfillment: r.fulfillment, location: toLocation(r) } } : { ordersCount: 0, contact: null };
 }

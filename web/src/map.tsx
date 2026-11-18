@@ -43,11 +43,14 @@ function Pin() {
   );
 }
 
+type PickerProps = { value: LatLng | null; center?: LatLng; onChange: (p: LatLng) => void; invalid?: boolean };
+
 /**
  * The customer moves the map under a fixed center pin. Starts at `value` (e.g. the last order's location)
- * or asks for the device location. `onChange` fires once a point is actually chosen, never for the default city view.
+ * or asks for the device location, showing `center`'s city meanwhile. `onChange` fires once a point is
+ * actually chosen, never for the default city view.
  */
-export function LocationPicker({ value, onChange, invalid }: { value: LatLng | null; onChange: (p: LatLng) => void; invalid?: boolean }) {
+export function LocationPicker({ value, center = TASHKENT, onChange, invalid }: PickerProps) {
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<LeafletMap | null>(null);
   const changed = useRef(onChange);
@@ -65,7 +68,7 @@ export function LocationPicker({ value, onChange, invalid }: { value: LatLng | n
 
   useEffect(() => {
     let cancelled = false;
-    createMap(el.current!, value ?? TASHKENT, value ? STREET_ZOOM : CITY_ZOOM, true).then((m) => {
+    createMap(el.current!, value ?? center, value ? STREET_ZOOM : CITY_ZOOM, true).then((m) => {
       if (cancelled) return m.remove();
       map.current = m;
       let touched = false;
@@ -78,6 +81,11 @@ export function LocationPicker({ value, onChange, invalid }: { value: LatLng | n
       map.current?.remove();
     };
   }, []);
+
+  // Another delivery area chosen before a point was: show its city.
+  useEffect(() => {
+    if (!value) map.current?.setView(center, CITY_ZOOM);
+  }, [center.lat, center.lng]);
 
   return (
     <div class={`map ${invalid ? 'invalid' : ''}`} id="location">
