@@ -14,7 +14,17 @@ export function MainButton(props: MainButtonProps) {
   return inTelegram ? <NativeMainButton {...props} /> : <FallbackMainButton {...props} />;
 }
 
+/**
+ * Telegram has one main button and one back button for the whole app, but each page shows its own.
+ * When a page is replaced, Preact may run the leaving page's cleanup after the new page has shown its button,
+ * so a plain hide() there would hide the new page's button. Only the instance that showed it last may hide it.
+ */
+const owner = { main: 0, back: 0 };
+let instances = 0;
+const useInstanceId = () => useState(() => ++instances)[0];
+
 function NativeMainButton({ text, onClick, loading = false, disabled = false }: MainButtonProps) {
+  const id = useInstanceId();
   const handler = useRef(onClick);
   handler.current = onClick;
 
@@ -23,13 +33,14 @@ function NativeMainButton({ text, onClick, loading = false, disabled = false }: 
     tg.MainButton.onClick(fire);
     return () => {
       tg.MainButton.offClick(fire);
-      tg.MainButton.hide();
+      if (owner.main === id) tg.MainButton.hide();
     };
   }, []);
 
   // Set right after the render (a plain useEffect waits for the next frame), then send once more shortly
   // after: some Telegram clients show a new text only when the next update arrives (see repaintMainButton).
   useLayoutEffect(() => {
+    owner.main = id;
     tg.MainButton.setParams({ text, is_visible: true, is_active: !disabled && !loading });
     if (loading) tg.MainButton.showProgress(false);
     else tg.MainButton.hideProgress();
@@ -53,17 +64,19 @@ function FallbackMainButton({ text, onClick, loading, disabled }: MainButtonProp
 /** Telegram back button that goes to a fixed parent screen, so deep links always have a sensible way back. */
 export function BackButton({ to }: { to: string }) {
   const [, navigate] = useLocation();
+  const id = useInstanceId();
   const target = useRef(to);
   target.current = to;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!inTelegram) return;
+    owner.back = id;
     const back = () => navigate(target.current);
     tg.BackButton.onClick(back);
     tg.BackButton.show();
     return () => {
       tg.BackButton.offClick(back);
-      tg.BackButton.hide();
+      if (owner.back === id) tg.BackButton.hide();
     };
   }, []);
 
