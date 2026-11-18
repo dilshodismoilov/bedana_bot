@@ -98,9 +98,9 @@ function browserLocation(): Promise<LatLng | null> {
   );
 }
 
-/** Opens a point in the user's maps app. */
+/** Opens a point in Yandex Maps. */
 export function openMap({ lat, lng }: LatLng) {
-  const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+  const url = `https://yandex.uz/maps/?pt=${lng},${lat}&z=17&l=map`;
   if (inTelegram) tg.openLink(url);
   else window.open(url, '_blank');
 }
