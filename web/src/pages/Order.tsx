@@ -1,6 +1,7 @@
 import { useState } from 'preact/hooks';
 import type { Me, Order, OrderStatus } from '../../../shared/types.ts';
 import { api, useApi } from '../api.ts';
+import { lineTotal, qtyText } from '../../../shared/units.ts';
 import { dateTime, money } from '../format.ts';
 import { LocationPreview } from '../map.tsx';
 import { alert, haptic } from '../tg.ts';
@@ -77,10 +78,10 @@ export function OrderPage({ id }: { id: number }) {
                 <div class="row-main">
                   <div>{i.name}</div>
                   <div class="muted">
-                    {i.qty} dona × {money(i.price)}
+                    {qtyText(i.qty, i.unit)} × {money(i.price)}
                   </div>
                 </div>
-                <div class="row-end">{money(i.price * i.qty)}</div>
+                <div class="row-end">{money(lineTotal(i.price, i.qty))}</div>
               </div>
             ))}
             <div class="row total">

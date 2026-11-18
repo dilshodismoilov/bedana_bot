@@ -60,7 +60,7 @@ export function AdminProducts() {
                 <div class="row-main">
                   <div>{p.name}</div>
                   <div class="muted">
-                    <UnitPrice value={p.price} />
+                    <UnitPrice value={p.price} unit={p.unit} />
                   </div>
                 </div>
                 <Icon name="chevron" />

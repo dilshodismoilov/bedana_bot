@@ -3,7 +3,8 @@
 import type { ComponentChildren } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { useLocation } from 'wouter-preact';
-import type { Order } from '../../shared/types.ts';
+import type { Order, Unit } from '../../shared/types.ts';
+import { MAX_QTY, QTY_DECIMALS, UNIT_LABEL } from '../../shared/units.ts';
 import { money } from './format.ts';
 import { inTelegram, repaintMainButton, tg } from './tg.ts';
 
@@ -74,21 +75,36 @@ export function BackButton({ to }: { to: string }) {
   );
 }
 
-const MAX_QTY = 100_000; // same limit as the server
+/** What the field shows for a quantity: "1,5" (decimal comma), or empty for none. */
+const qtyValue = (qty: number) => (qty ? String(qty).replace('.', ',') : '');
+
+/**
+ * Keeps what was typed to a valid quantity for the unit: digits, plus for kg one decimal separator
+ * (comma or point, shown as a comma) and at most QTY_DECIMALS digits after it. "1," stays while typing.
+ */
+function cleanQty(typed: string, unit: Unit): string {
+  const decimals = QTY_DECIMALS[unit];
+  const [whole, ...rest] = typed.replace(/\./g, ',').replace(/[^\d,]/g, '').split(',');
+  let s = whole.replace(/^0+(?=\d)/, '');
+  if (decimals && rest.length) s = `${s || '0'},${rest.join('').slice(0, decimals)}`;
+  return Number(s.replace(',', '.')) > MAX_QTY ? String(MAX_QTY) : s;
+}
 
 /**
  * Quantity field: the cart follows the number as it is typed, no button to press.
  * An emptied field removes the item when the field loses focus, so a cart row doesn't vanish
  * while a new number is being typed.
  */
-export function QtyInput({ qty, onChange }: { qty: number; onChange: (qty: number) => void }) {
-  const [value, setValue] = useState(qty ? String(qty) : '');
+export function QtyInput({ qty, unit, onChange }: { qty: number; unit: Unit; onChange: (qty: number) => void }) {
+  const [value, setValue] = useState(qtyValue(qty));
   const focused = useRef(false);
 
   // Follow cart changes made elsewhere (e.g. the same product's field on another screen), but not mid-typing.
   useEffect(() => {
-    if (!focused.current) setValue(qty ? String(qty) : '');
+    if (!focused.current) setValue(qtyValue(qty));
   }, [qty]);
+
+  const number = (s: string) => Number(s.replace(',', '.'));
 
   return (
     <form
@@ -99,8 +115,7 @@ export function QtyInput({ qty, onChange }: { qty: number; onChange: (qty: numbe
       }}
     >
       <input
-        inputMode="numeric"
-        pattern="[0-9]*"
+        inputMode={QTY_DECIMALS[unit] ? 'decimal' : 'numeric'}
         enterKeyHint="done"
         placeholder="0"
         aria-label="Miqdor"
@@ -108,30 +123,29 @@ export function QtyInput({ qty, onChange }: { qty: number; onChange: (qty: numbe
         onFocus={() => (focused.current = true)}
         onBlur={() => {
           focused.current = false;
-          if (!Number(value)) {
+          if (!number(value)) {
             setValue('');
             onChange(0);
-          }
+          } else setValue(qtyValue(number(value))); // "1," becomes "1"
         }}
         onInput={(e) => {
-          const digits = e.currentTarget.value.replace(/D/g, '').replace(/^0+(?=d)/, '');
-          const next = digits && String(Math.min(Number(digits), MAX_QTY));
+          const next = cleanQty(e.currentTarget.value, unit);
           e.currentTarget.value = next; // keep the field in sync even when the state value doesn't change
           setValue(next);
-          if (Number(next) > 0) onChange(Number(next));
+          if (number(next) > 0) onChange(number(next));
         }}
       />
-      <span>dona</span>
+      <span>{UNIT_LABEL[unit]}</span>
     </form>
   );
 }
 
-/** Price of one piece, e.g. "1 600 so'm / dona". The unit is dimmed so the number stays prominent. */
-export function UnitPrice({ value }: { value: number }) {
+/** Price of one unit, e.g. "1 600 so'm / dona", "85 000 so'm / kg". The unit is dimmed so the number stays prominent. */
+export function UnitPrice({ value, unit }: { value: number; unit: Unit }) {
   return (
     <span class="unit-price">
       {money(value)}
-      <span class="unit"> / dona</span>
+      <span class="unit"> / {UNIT_LABEL[unit]}</span>
     </span>
   );
 }

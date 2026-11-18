@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Me, NewOrder, OrderStatus } from '../shared/types.ts';
+import { isUnit, MAX_QTY } from '../shared/units.ts';
 import { adminOnly, auth, isAdmin, type AuthEnv } from './auth.ts';
 import { uploadsDir } from './db.ts';
 import * as store from './store.ts';
@@ -108,6 +109,15 @@ function int(value: unknown, min: number, max: number, message: string): number 
   return n;
 }
 
+const fail = (message: string): never => {
+  throw new store.UserError(message);
+};
+
+function quantity(value: unknown): number {
+  if (typeof value !== 'number' || !(value > 0 && value <= MAX_QTY)) throw new store.UserError("Miqdor noto'g'ri");
+  return value;
+}
+
 function location(value: any): { lat: number; lng: number } {
   const lat = Number(value?.lat);
   const lng = Number(value?.lng);
@@ -123,6 +133,7 @@ function productFields(body: Record<string, unknown>) {
   return {
     name: text(body.name, 100, 'Nomini kiriting'),
     price: int(body.price, 1, 1_000_000_000, 'Narxni kiriting'),
+    unit: isUnit(body.unit) ? body.unit : fail("O'lchov birligini tanlang"),
     description,
   };
 }
@@ -136,7 +147,7 @@ function parseNewOrder(body: any): NewOrder {
     location: location(body.location),
     items: items.map((i: any) => ({
       productId: int(i?.productId, 1, Number.MAX_SAFE_INTEGER, 'Savatda xatolik'),
-      qty: int(i?.qty, 1, 100_000, "Miqdor noto'g'ri"),
+      qty: quantity(i?.qty), // checked against the product's unit when the order is created
     })),
   };
 }

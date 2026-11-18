@@ -56,6 +56,11 @@ const migrations = [
   UPDATE products SET images = json_array(image);
   ALTER TABLE products DROP COLUMN image;
   `,
+  // Sale unit (piece or kg). Order items snapshot it like name and price; their qty can be fractional for kg.
+  `
+  ALTER TABLE products ADD COLUMN unit TEXT NOT NULL DEFAULT 'piece';
+  ALTER TABLE order_items ADD COLUMN unit TEXT NOT NULL DEFAULT 'piece';
+  `,
 ];
 
 const { user_version } = db.prepare('PRAGMA user_version').get() as { user_version: number };

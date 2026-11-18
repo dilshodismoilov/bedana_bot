@@ -62,10 +62,10 @@ function ProductCard({ product, qty }: { product: Product; qty: number }) {
         <img src={product.images[0]} alt="" loading="lazy" />
         <div class="product-name">{product.name}</div>
         <div class="product-price">
-          <UnitPrice value={product.price} />
+          <UnitPrice value={product.price} unit={product.unit} />
         </div>
       </Link>
-      <QtyInput qty={qty} onChange={(n) => setQty(product.id, n)} />
+      <QtyInput qty={qty} unit={product.unit} onChange={(n) => setQty(product.id, n)} />
     </div>
   );
 }

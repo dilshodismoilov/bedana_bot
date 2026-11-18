@@ -1,5 +1,6 @@
 // Outgoing Telegram Bot API calls. Incoming commands (e.g. /here) are handled in bot.ts.
 import type { Order } from '../shared/types.ts';
+import { lineTotal, qtyText } from '../shared/units.ts';
 import { env } from './env.ts';
 import { getOrderMessageId, setOrderMessageId } from './store.ts';
 
@@ -87,7 +88,7 @@ function customerMessage(order: Order) {
 }
 
 const itemLines = (order: Order) =>
-  order.items.map((i) => `${esc(i.name)}: ${i.qty} dona × ${num(i.price)} = ${money(i.price * i.qty)}`);
+  order.items.map((i) => `${esc(i.name)}: ${qtyText(i.qty, i.unit)} × ${num(i.price)} = ${money(lineTotal(i.price, i.qty))}`);
 
 function htmlWithOpenButton(lines: string[], orderId: number) {
   return {

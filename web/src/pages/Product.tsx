@@ -24,8 +24,8 @@ export function ProductPage({ id }: { id: number }) {
           <section class="card product-info">
             <h1>{product.name}</h1>
             <div class="product-buy">
-              <UnitPrice value={product.price} />
-              <QtyInput qty={cart.value[product.id] ?? 0} onChange={(n) => setQty(product.id, n)} />
+              <UnitPrice value={product.price} unit={product.unit} />
+              <QtyInput qty={cart.value[product.id] ?? 0} unit={product.unit} onChange={(n) => setQty(product.id, n)} />
             </div>
             {product.description && <p class="product-description">{product.description}</p>}
           </section>

@@ -1,5 +1,6 @@
 import { effect, signal } from '@preact/signals';
 import type { Contact, Product } from '../../shared/types.ts';
+import { lineTotal } from '../../shared/units.ts';
 
 // productId -> qty. Persisted per device.
 export const cart = signal<Record<number, number>>(read('cart', {}));
@@ -25,7 +26,7 @@ export function cartLines(products: Product[]) {
 }
 
 export const linesTotal = (lines: { product: Product; qty: number }[]) =>
-  lines.reduce((sum, l) => sum + l.product.price * l.qty, 0);
+  lines.reduce((sum, l) => sum + lineTotal(l.product.price, l.qty), 0);
 
 function read<T>(key: string, fallback: T): T {
   try {

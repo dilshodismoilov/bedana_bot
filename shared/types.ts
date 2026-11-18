@@ -1,9 +1,13 @@
 // Types shared by server and web. Money is always integer so'm.
 
+/** How a product is sold and priced: per piece, or per kilogram (quantities in 100 g steps). See units.ts. */
+export type Unit = 'piece' | 'kg';
+
 export type Product = {
   id: number;
   name: string;
-  price: number; // per piece
+  price: number; // per unit
+  unit: Unit;
   description: string; // may be empty
   images: string[]; // URL paths, e.g. /uploads/abc.jpg; at least one, the first is the cover
 };
@@ -20,7 +24,8 @@ export type OrderItem = {
   productId: number | null; // null once the product is deleted; name/price are snapshots
   name: string;
   price: number;
-  qty: number;
+  unit: Unit;
+  qty: number; // whole for pieces, may have a decimal for kg
 };
 
 export type Order = Contact & {

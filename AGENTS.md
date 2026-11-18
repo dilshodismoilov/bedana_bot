@@ -6,6 +6,7 @@ A Telegram Mini App shop with a customer side and an admin side. Read README.md 
 
 ```
 shared/types.ts      API contract: the types server and web both use. Start here.
+shared/units.ts      sale units (dona, kg): labels, quantity steps, line totals
 server/
   main.ts            starts the HTTP server
   app.ts             mounts /api, static files, SPA fallback, cache headers
@@ -48,7 +49,8 @@ For UI changes, check the affected screens in a mobile-sized browser viewport, i
 - **Node runs the server's TypeScript directly** (type stripping). Use erasable syntax only: no `enum`, `namespace` or constructor parameter properties. Import paths keep their `.ts`/`.tsx` extension, on the web side too, for consistency.
 - **Schema changes:** append a new entry to `migrations` in `server/db.ts`. Never edit an entry that has already shipped.
 - **Product photos** are a JSON array of file names in `products.images`, cover first. The form sends them as repeated `images` fields in order: a File for a new photo, the existing URL to keep one. The server deletes files that are no longer listed. The client crops every photo to a square before upload.
-- **Money** is an integer number of so'm. Order items snapshot `name` and `price`, so editing or deleting a product never changes past orders.
+- **Money** is an integer number of so'm. Order items snapshot `name`, `price` and `unit`, so editing or deleting a product never changes past orders. Use `lineTotal()` for price × qty: a kg quantity can be fractional, and each line is rounded to whole so'm.
+- **Units:** a product is sold per `piece` or per `kg`. Quantity rules (100 g steps for kg) live in `shared/units.ts` and are checked by the server against the product's current unit. To add a unit, extend `Unit` and the tables in `units.ts`.
 - **Prices are computed on the server.** The client only sends `productId` and `qty`.
 - **New API endpoint:** add the route in `api.ts`, the SQL in `store.ts`, any new types in `shared/types.ts`, and a test case in `api.test.ts`.
 - **Auth:** every `/api` route requires Telegram initData (`Authorization: tma <initData>`). Wrap admin routes with `adminOnly`.

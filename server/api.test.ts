@@ -30,10 +30,11 @@ const call = async (method: string, path: string, body?: unknown) => {
 const photo = () => new File([new Uint8Array([1, 2, 3])], 'a.jpg', { type: 'image/jpeg' });
 
 /** `images`: a new file per `'new'`, or a URL the product already has. */
-const productForm = (name: string, price: number, images: ('new' | string)[] = ['new'], description = '') => {
+const productForm = (name: string, price: number, images: ('new' | string)[] = ['new'], description = '', unit = 'piece') => {
   const f = new FormData();
   f.set('name', name);
   f.set('price', String(price));
+  f.set('unit', unit);
   f.set('description', description);
   for (const i of images) f.append('images', i === 'new' ? photo() : i);
   return f;
@@ -51,7 +52,7 @@ test('product CRUD, order with server-side pricing, paid toggle', async () => {
   const updated = await call('PUT', `/products/${created.body.id}`, productForm('Bedana tuxumi', 1600, created.body.images));
   assert.equal(updated.body.price, 1600);
   assert.deepEqual(updated.body.images, created.body.images);
-  assert.deepEqual(Object.keys(created.body).sort(), ['description', 'id', 'images', 'name', 'price'], 'no internal fields leak');
+  assert.deepEqual(Object.keys(created.body).sort(), ['description', 'id', 'images', 'name', 'price', 'unit'], 'no internal fields leak');
 
   const order = await call('POST', '/orders', {
     name: 'Ali',
@@ -61,7 +62,7 @@ test('product CRUD, order with server-side pricing, paid toggle', async () => {
   });
   assert.equal(order.status, 201);
   assert.equal(order.body.total, 48000);
-  assert.deepEqual(order.body.items, [{ productId: created.body.id, name: 'Bedana tuxumi', price: 1600, qty: 30 }]);
+  assert.deepEqual(order.body.items, [{ productId: created.body.id, name: 'Bedana tuxumi', price: 1600, unit: 'piece', qty: 30 }]);
 
   const me = await call('GET', '/me');
   assert.deepEqual(me.body, { isAdmin: true, ordersCount: 1, contact: { name: 'Ali', phone: '+998 90 123 45 67', location: { lat: 41.311081, lng: 69.240562 } } });
@@ -77,6 +78,43 @@ test('product CRUD, order with server-side pricing, paid toggle', async () => {
 
   const stale = await call('POST', '/orders', { name: 'A', phone: '1', location: HERE, items: [{ productId: created.body.id, qty: 1 }] });
   assert.equal(stale.status, 400);
+});
+
+test('products sold by the kilogram take 100 g steps; pieces stay whole', async () => {
+  const meat = await call('POST', '/products', productForm("Bedana go'shti", 85_000, ['new'], '', 'kg'));
+  assert.equal(meat.body.unit, 'kg');
+  const eggs = await call('POST', '/products', productForm('Tuxum', 1500));
+  assert.equal(eggs.body.unit, 'piece');
+  assert.equal((await call('POST', '/products', productForm('X', 1, ['new'], '', 'litr'))).status, 400);
+
+  const place = (items: { productId: number; qty: unknown }[]) => call('POST', '/orders', { name: 'A', phone: '1', location: HERE, items });
+  const order = await place([
+    { productId: meat.body.id, qty: 1.5 },
+    { productId: eggs.body.id, qty: 10 },
+  ]);
+  assert.equal(order.status, 201);
+  assert.equal(order.body.total, 85_000 * 1.5 + 15_000);
+  assert.deepEqual(
+    order.body.items.map((i: any) => [i.unit, i.qty]),
+    [['kg', 1.5], ['piece', 10]],
+  );
+
+  // A half so'm is rounded per line.
+  const odd = await call('POST', '/products', productForm('Odd', 1235, ['new'], '', 'kg'));
+  assert.equal((await place([{ productId: odd.body.id, qty: 0.3 }])).body.total, 371); // 370.5
+
+  for (const [productId, qty] of [
+    [eggs.body.id, 1.5],
+    [meat.body.id, 1.25],
+    [meat.body.id, 0],
+    [meat.body.id, '2'],
+  ] as const) {
+    assert.equal((await place([{ productId, qty }])).status, 400, `${qty} of ${productId}`);
+  }
+
+  // Order items keep the unit they were sold in after the product changes.
+  await call('PUT', `/products/${meat.body.id}`, productForm("Bedana go'shti", 85_000, meat.body.images));
+  assert.deepEqual((await call('GET', `/orders/${order.body.id}`)).body.items[0].unit, 'kg');
 });
 
 test('product gallery: add, reorder and remove photos; description', async () => {

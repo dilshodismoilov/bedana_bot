@@ -532,6 +532,10 @@ h1 {
   resize: none;
 }
 
+.fields > textarea {
+  overflow: hidden; /* it grows with its text (AutoTextarea) */
+}
+
 .fields > * + * {
   border-top: 1px solid var(--separator) !important;
 }
@@ -544,6 +548,7 @@ h1 {
 
 .suffix-field input {
   flex: 1;
+  min-width: 0; /* an input's default width would push the suffix out of the row */
   border: 0;
   background: none;
   outline: none;
@@ -567,6 +572,30 @@ h1 {
 @keyframes shake {
   25% { transform: translateX(-4px); }
   75% { transform: translateX(4px); }
+}
+
+.suffix-field .muted {
+  white-space: nowrap;
+}
+
+/* dona | kg, after the price. */
+.unit-switch {
+  display: flex;
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--tint);
+  font-size: 14px;
+}
+
+.unit-switch button {
+  padding: 4px 10px;
+  border-radius: 7px;
+  color: var(--hint);
+}
+
+.unit-switch button.active {
+  background: var(--accent);
+  color: var(--accent-text);
 }
 
 /* Product photo: a square frame showing exactly what the catalog card shows. */

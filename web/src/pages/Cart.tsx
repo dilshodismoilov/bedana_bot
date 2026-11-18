@@ -3,6 +3,7 @@ import { useLocation } from 'wouter-preact';
 import type { Contact, Me, Order, Product } from '../../../shared/types.ts';
 import { api, prime, useApi } from '../api.ts';
 import { cartLines, clearCart, draft, linesTotal, setQty } from '../cart.ts';
+import { lineTotal } from '../../../shared/units.ts';
 import { money } from '../format.ts';
 import { LocationPicker } from '../map.tsx';
 import { alert, allowBotMessages, haptic, tg } from '../tg.ts';
@@ -87,12 +88,12 @@ export function Cart() {
             <div class="row-main">
               <div>{product.name}</div>
               <div class="muted">
-                <UnitPrice value={product.price} />
+                <UnitPrice value={product.price} unit={product.unit} />
               </div>
             </div>
             <div class="row-end">
-              <QtyInput qty={qty} onChange={(n) => setQty(product.id, n)} />
-              <div>{money(product.price * qty)}</div>
+              <QtyInput qty={qty} unit={product.unit} onChange={(n) => setQty(product.id, n)} />
+              <div>{money(lineTotal(product.price, qty))}</div>
             </div>
           </div>
         ))}

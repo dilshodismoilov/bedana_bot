@@ -2,6 +2,7 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { deflateSync } from 'node:zlib';
+import type { Unit } from '../shared/types.ts';
 import { uploadsDir } from '../server/db.ts';
 import { createProduct, listProducts } from '../server/store.ts';
 
@@ -10,17 +11,17 @@ if (listProducts().length) {
   process.exit(0);
 }
 
-const samples: [string, number, [number, number, number]][] = [
-  ['Bedana tuxumi', 1500, [214, 196, 168]],
-  ['Tovuq tuxumi', 1800, [236, 214, 180]],
-  ['Bedana go‘shti', 25000, [196, 120, 96]],
-  ['Bedana (tirik)', 12000, [150, 132, 110]],
+const samples: [string, number, Unit, [number, number, number]][] = [
+  ['Bedana tuxumi', 1500, 'piece', [214, 196, 168]],
+  ['Tovuq tuxumi', 1800, 'piece', [236, 214, 180]],
+  ["Bedana go'shti", 85000, 'kg', [196, 120, 96]],
+  ['Bedana (tirik)', 12000, 'piece', [150, 132, 110]],
 ];
 
-for (const [name, price, rgb] of samples) {
+for (const [name, price, unit, rgb] of samples) {
   const imageFile = `seed-${Math.random().toString(36).slice(2)}.png`;
   writeFileSync(join(uploadsDir, imageFile), solidPng(400, rgb));
-  createProduct({ name, price, description: '', imageFiles: [imageFile] });
+  createProduct({ name, price, unit, description: '', imageFiles: [imageFile] });
 }
 console.log(`Seeded ${samples.length} products.`);
 

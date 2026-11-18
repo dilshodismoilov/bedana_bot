@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { useLocation } from 'wouter-preact';
-import type { Product } from '../../../shared/types.ts';
+import type { Product, Unit } from '../../../shared/types.ts';
+import { UNIT_LABEL } from '../../../shared/units.ts';
 import { api, useApi } from '../api.ts';
 import { centerSquare, ImageCrop } from '../crop.tsx';
 import { alert, confirm, haptic } from '../tg.ts';
@@ -22,6 +23,7 @@ export function ProductForm({ id }: { id: number | null }) {
 
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
+  const [unit, setUnit] = useState<Unit>('piece');
   const [description, setDescription] = useState('');
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [selected, setSelected] = useState(0);
@@ -34,6 +36,7 @@ export function ProductForm({ id }: { id: number | null }) {
     if (!existing) return;
     setName(existing.name);
     setPrice(String(existing.price));
+    setUnit(existing.unit);
     setDescription(existing.description);
     setPhotos(existing.images.map((src) => ({ src, upload: null, edited: false })));
   }, [existing?.id]);
@@ -113,6 +116,7 @@ export function ProductForm({ id }: { id: number | null }) {
       const form = new FormData();
       form.set('name', name.trim());
       form.set('price', price);
+      form.set('unit', unit);
       form.set('description', description.trim());
       for (const p of list) form.append('images', p.upload ? new File([p.upload], 'image.jpg', { type: 'image/jpeg' }) : p.src);
 
@@ -208,7 +212,24 @@ export function ProductForm({ id }: { id: number | null }) {
               markValid('price');
             }}
           />
-          <span class="muted">so'm / dona</span>
+          <span class="muted">so'm /</span>
+          <span class="unit-switch" role="radiogroup">
+            {(Object.keys(UNIT_LABEL) as Unit[]).map((u) => (
+              <button
+                key={u}
+                type="button"
+                role="radio"
+                aria-checked={u === unit}
+                class={u === unit ? 'active' : ''}
+                onClick={() => {
+                  setUnit(u);
+                  haptic.tap();
+                }}
+              >
+                {UNIT_LABEL[u]}
+              </button>
+            ))}
+          </span>
         </label>
         <AutoTextarea placeholder="Tavsif" maxLength={2000} value={description} onInput={setDescription} />
       </section>
