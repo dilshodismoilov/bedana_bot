@@ -58,11 +58,13 @@ export function Catalog() {
 function ProductCard({ product, qty }: { product: Product; qty: number }) {
   return (
     <div class="card product">
-      <img src={product.image} alt="" loading="lazy" />
-      <div class="product-name">{product.name}</div>
-      <div class="product-price">
-        <UnitPrice value={product.price} />
-      </div>
+      <Link href={`/products/${product.id}`} class="product-link">
+        <img src={product.images[0]} alt="" loading="lazy" />
+        <div class="product-name">{product.name}</div>
+        <div class="product-price">
+          <UnitPrice value={product.price} />
+        </div>
+      </Link>
       <QtyInput qty={qty} onChange={(n) => setQty(product.id, n)} />
     </div>
   );

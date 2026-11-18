@@ -4,7 +4,8 @@ export type Product = {
   id: number;
   name: string;
   price: number; // per piece
-  image: string; // URL path, e.g. /uploads/abc.jpg
+  description: string; // may be empty
+  images: string[]; // URL paths, e.g. /uploads/abc.jpg; at least one, the first is the cover
 };
 
 export type LatLng = { lat: number; lng: number };

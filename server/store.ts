@@ -8,7 +8,8 @@ const toProduct = (r: Row): Product => ({
   id: r.id,
   name: r.name,
   price: r.price,
-  image: `/uploads/${r.image}`,
+  description: r.description,
+  images: (JSON.parse(r.images) as string[]).map((f) => `/uploads/${f}`),
 });
 
 const toItem = (r: Row): OrderItem => ({
@@ -47,21 +48,29 @@ export function getProduct(id: number): Product | null {
   return r ? toProduct(r) : null;
 }
 
-/** File name inside DATA_DIR/uploads. Server-only; never sent to clients. */
-export function getProductImageFile(id: number): string | null {
-  const r = db.prepare('SELECT image FROM products WHERE id = ?').get(id) as Row | undefined;
-  return r?.image ?? null;
+/** File names inside DATA_DIR/uploads, or null if there is no such product. Server-only; never sent to clients. */
+export function getProductImageFiles(id: number): string[] | null {
+  const r = db.prepare('SELECT images FROM products WHERE id = ?').get(id) as Row | undefined;
+  return r ? JSON.parse(r.images) : null;
 }
 
-export function createProduct(p: { name: string; price: number; imageFile: string }): Product {
+type ProductInput = { name: string; price: number; description: string; imageFiles: string[] };
+
+export function createProduct(p: ProductInput): Product {
   const { lastInsertRowid } = db
-    .prepare('INSERT INTO products (name, price, image, created_at) VALUES (?, ?, ?, ?)')
-    .run(p.name, p.price, p.imageFile, new Date().toISOString());
+    .prepare('INSERT INTO products (name, price, description, images, created_at) VALUES (?, ?, ?, ?, ?)')
+    .run(p.name, p.price, p.description, JSON.stringify(p.imageFiles), new Date().toISOString());
   return getProduct(Number(lastInsertRowid))!;
 }
 
-export function updateProduct(id: number, p: { name: string; price: number; imageFile: string }): Product {
-  db.prepare('UPDATE products SET name = ?, price = ?, image = ? WHERE id = ?').run(p.name, p.price, p.imageFile, id);
+export function updateProduct(id: number, p: ProductInput): Product {
+  db.prepare('UPDATE products SET name = ?, price = ?, description = ?, images = ? WHERE id = ?').run(
+    p.name,
+    p.price,
+    p.description,
+    JSON.stringify(p.imageFiles),
+    id,
+  );
   return getProduct(id)!;
 }
 

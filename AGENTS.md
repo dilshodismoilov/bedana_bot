@@ -23,7 +23,7 @@ web/src/
   pages/             one file per screen; each page fetches its own data
   ui.tsx             MainButton, BackButton, QtyInput, Status, Icon
   tg.ts              Telegram WebApp SDK wrapper (haptics, confirm, deep link, device location)
-  crop.tsx           product photo frame: drag/pinch to crop, exports the square JPEG that is uploaded
+  crop.tsx           product photo frame: drag/pinch to crop, exports the square JPEGs that are uploaded
   map.tsx            delivery-location map: picker at checkout, preview on orders (Leaflet, lazy-loaded)
   api.ts             fetch wrapper + useApi (stale-while-revalidate cache)
   cart.ts            cart and checkout draft (signals, persisted to localStorage)
@@ -47,6 +47,7 @@ For UI changes, check the affected screens in a mobile-sized browser viewport, i
 
 - **Node runs the server's TypeScript directly** (type stripping). Use erasable syntax only: no `enum`, `namespace` or constructor parameter properties. Import paths keep their `.ts`/`.tsx` extension, on the web side too, for consistency.
 - **Schema changes:** append a new entry to `migrations` in `server/db.ts`. Never edit an entry that has already shipped.
+- **Product photos** are a JSON array of file names in `products.images`, cover first. The form sends them as repeated `images` fields in order: a File for a new photo, the existing URL to keep one. The server deletes files that are no longer listed. The client crops every photo to a square before upload.
 - **Money** is an integer number of so'm. Order items snapshot `name` and `price`, so editing or deleting a product never changes past orders.
 - **Prices are computed on the server.** The client only sends `productId` and `qty`.
 - **New API endpoint:** add the route in `api.ts`, the SQL in `store.ts`, any new types in `shared/types.ts`, and a test case in `api.test.ts`.

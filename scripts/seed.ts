@@ -20,7 +20,7 @@ const samples: [string, number, [number, number, number]][] = [
 for (const [name, price, rgb] of samples) {
   const imageFile = `seed-${Math.random().toString(36).slice(2)}.png`;
   writeFileSync(join(uploadsDir, imageFile), solidPng(400, rgb));
-  createProduct({ name, price, imageFile });
+  createProduct({ name, price, description: '', imageFiles: [imageFile] });
 }
 console.log(`Seeded ${samples.length} products.`);
 

@@ -1,3 +1,4 @@
+import type { ComponentChildren } from 'preact';
 import { useRef, useState } from 'preact/hooks';
 import { Icon } from './ui.tsx';
 
@@ -12,10 +13,11 @@ const START: View = { zoom: 1, dx: 0, dy: 0 };
 type Props = {
   src: string | undefined;
   invalid: boolean;
-  onPick: () => void;
+  onPick: () => void; // the empty frame was tapped
   onEdit: () => void;
   onError: () => void;
   cropRef: { current: (() => Promise<Blob>) | null };
+  children?: ComponentChildren; // buttons drawn over the photo
 };
 
 /**
@@ -25,7 +27,7 @@ type Props = {
 // Keyed by src: a new photo starts from a fresh frame (a reset effect would race the image's load event).
 export const ImageCrop = (props: Props) => <Frame key={props.src} {...props} />;
 
-function Frame({ src, invalid, onPick, onEdit, onError, cropRef }: Props) {
+function Frame({ src, invalid, onPick, onEdit, onError, cropRef, children }: Props) {
   const frame = useRef<HTMLDivElement>(null);
   const img = useRef<HTMLImageElement>(null);
   const pointers = useRef(new Map<number, Point>());
@@ -124,6 +126,7 @@ function Frame({ src, invalid, onPick, onEdit, onError, cropRef }: Props) {
       ref={frame}
       class={`image-crop ${dragging ? 'dragging' : ''} ${invalid ? 'invalid' : ''}`}
       onPointerDown={(e) => {
+        if ((e.target as Element).closest('button')) return; // the buttons over the photo
         pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
         setDragging(true);
         frame.current!.setPointerCapture(e.pointerId); // keep receiving moves when the finger leaves the frame
@@ -146,14 +149,27 @@ function Frame({ src, invalid, onPick, onEdit, onError, cropRef }: Props) {
         onLoad={(e) => setNatural({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
         onError={onError}
       />
-      <button
-        class="icon-button image-crop-replace"
-        onPointerDown={(e) => e.stopPropagation()}
-        onClick={onPick}
-        aria-label="Boshqa rasm"
-      >
-        <Icon name="image" />
-      </button>
+      {children}
     </div>
+  );
+}
+
+/** The photo's centered square, as the frame shows it before it is moved. */
+export async function centerSquare(src: string): Promise<Blob> {
+  const image = new Image();
+  image.src = src;
+  await image.decode();
+  const size = Math.min(image.naturalWidth, image.naturalHeight);
+  return toJpeg(image, (image.naturalWidth - size) / 2, (image.naturalHeight - size) / 2, size);
+}
+
+/** The square (sx, sy, size) of the image, scaled down to at most OUTPUT px. */
+function toJpeg(image: HTMLImageElement, sx: number, sy: number, size: number): Promise<Blob> {
+  const out = Math.min(OUTPUT, Math.round(size));
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = out;
+  canvas.getContext('2d')!.drawImage(image, sx, sy, size, size, 0, 0, out, out);
+  return new Promise((resolve, reject) =>
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Rasmni saqlab bo'lmadi"))), 'image/jpeg', 0.85),
   );
 }

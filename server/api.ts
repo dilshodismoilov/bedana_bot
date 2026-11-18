@@ -29,33 +29,36 @@ api.get('/me', async (c) => {
 
 api.get('/products', (c) => c.json(store.listProducts()));
 
-const imageUpload = bodyLimit({ maxSize: 10 * 1024 * 1024, onError: (c) => c.json({ error: 'Rasm juda katta' }, 413) });
+// Up to MAX_IMAGES cropped JPEGs (about 0.3 MB each) per request.
+const imageUpload = bodyLimit({ maxSize: 30 * 1024 * 1024, onError: (c) => c.json({ error: 'Rasmlar juda katta' }, 413) });
 
+// Products are sent as multipart forms. `images` is repeated, in display order: a File for a new photo,
+// or the URL of a photo the product already has to keep it.
 api.post('/products', adminOnly, imageUpload, async (c) => {
-  const body = await c.req.parseBody();
+  const body = await c.req.parseBody({ all: true });
   const fields = productFields(body);
-  const imageFile = await saveImage(body.image);
-  return c.json(store.createProduct({ ...fields, imageFile }), 201);
+  const imageFiles = await saveImages(body.images, []);
+  return c.json(store.createProduct({ ...fields, imageFiles }), 201);
 });
 
 api.put('/products/:id', adminOnly, imageUpload, async (c) => {
   const id = Number(c.req.param('id'));
-  const oldImage = store.getProductImageFile(id);
-  if (!oldImage) return c.json({ error: 'Mahsulot topilmadi' }, 404);
-  const body = await c.req.parseBody();
+  const oldImages = store.getProductImageFiles(id);
+  if (!oldImages) return c.json({ error: 'Mahsulot topilmadi' }, 404);
+  const body = await c.req.parseBody({ all: true });
   const fields = productFields(body);
-  const imageFile = body.image instanceof File ? await saveImage(body.image) : oldImage;
-  const product = store.updateProduct(id, { ...fields, imageFile });
-  if (imageFile !== oldImage) await removeImage(oldImage);
+  const imageFiles = await saveImages(body.images, oldImages);
+  const product = store.updateProduct(id, { ...fields, imageFiles });
+  await removeImages(oldImages.filter((f) => !imageFiles.includes(f)));
   return c.json(product);
 });
 
 api.delete('/products/:id', adminOnly, async (c) => {
   const id = Number(c.req.param('id'));
-  const image = store.getProductImageFile(id);
-  if (!image) return c.json({ error: 'Mahsulot topilmadi' }, 404);
+  const images = store.getProductImageFiles(id);
+  if (!images) return c.json({ error: 'Mahsulot topilmadi' }, 404);
   store.deleteProduct(id);
-  await removeImage(image);
+  await removeImages(images);
   return c.json({ ok: true });
 });
 
@@ -114,9 +117,13 @@ function location(value: any): { lat: number; lng: number } {
 }
 
 function productFields(body: Record<string, unknown>) {
+  // Multipart forms send line breaks as \r\n.
+  const description = typeof body.description === 'string' ? body.description.replace(/\r\n?/g, '\n').trim() : '';
+  if (description.length > 2000) throw new store.UserError('Tavsif juda uzun');
   return {
     name: text(body.name, 100, 'Nomini kiriting'),
     price: int(body.price, 1, 1_000_000_000, 'Narxni kiriting'),
+    description,
   };
 }
 
@@ -135,16 +142,36 @@ function parseNewOrder(body: any): NewOrder {
 }
 
 const IMAGE_TYPES: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+const MAX_IMAGES = 10; // the admin form has the same limit
 
-async function saveImage(file: unknown): Promise<string> {
-  if (!(file instanceof File)) throw new store.UserError('Rasm tanlang');
-  const ext = IMAGE_TYPES[file.type];
-  if (!ext) throw new store.UserError("Rasm JPG, PNG yoki WEBP bo'lishi kerak");
-  const name = `${randomUUID()}.${ext}`;
-  await writeFile(join(uploadsDir, name), Buffer.from(await file.arrayBuffer()));
-  return name;
+/** Validates the whole `images` list first, then writes the new files. Returns file names in display order. */
+async function saveImages(value: unknown, existing: string[]): Promise<string[]> {
+  const entries = value === undefined ? [] : Array.isArray(value) ? value : [value];
+  if (!entries.length) throw new store.UserError('Rasm tanlang');
+  if (entries.length > MAX_IMAGES) throw new store.UserError(`Ko'pi bilan ${MAX_IMAGES} ta rasm`);
+  const kept = new Set<string>();
+  for (const e of entries) {
+    if (e instanceof File) {
+      if (!IMAGE_TYPES[e.type]) throw new store.UserError("Rasm JPG, PNG yoki WEBP bo'lishi kerak");
+      continue;
+    }
+    const name = typeof e === 'string' ? e.replace(/^\/uploads\//, '') : '';
+    if (!existing.includes(name) || kept.has(name)) throw new store.UserError('Rasm topilmadi');
+    kept.add(name);
+  }
+  const names: string[] = [];
+  for (const e of entries as (File | string)[]) {
+    if (typeof e === 'string') {
+      names.push(e.replace(/^\/uploads\//, ''));
+      continue;
+    }
+    const name = `${randomUUID()}.${IMAGE_TYPES[e.type]}`;
+    await writeFile(join(uploadsDir, name), Buffer.from(await e.arrayBuffer()));
+    names.push(name);
+  }
+  return names;
 }
 
-async function removeImage(name: string) {
-  await unlink(join(uploadsDir, name)).catch(() => {});
+async function removeImages(names: string[]) {
+  await Promise.all(names.map((n) => unlink(join(uploadsDir, n)).catch(() => {})));
 }

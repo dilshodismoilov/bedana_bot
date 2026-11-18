@@ -12,6 +12,7 @@ export const app = new Hono();
 
 app.route('/api', api);
 app.use('/uploads/*', serveStatic({ root: env.dataDir, onFound: immutable })); // file names are random UUIDs
+app.get('/uploads/*', (c) => c.notFound()); // a deleted photo is a 404, not the app's index.html
 
 // The built web app. In dev Vite serves it instead, so a missing dist/ is expected there.
 if (!env.dev || existsSync('dist')) {

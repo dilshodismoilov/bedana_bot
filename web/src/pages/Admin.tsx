@@ -56,7 +56,7 @@ export function AdminProducts() {
           <section class="card list">
             {products.data.map((p) => (
               <Link key={p.id} href={`/admin/products/${p.id}`} class="row">
-                <img class="thumb" src={p.image} alt="" />
+                <img class="thumb" src={p.images[0]} alt="" />
                 <div class="row-main">
                   <div>{p.name}</div>
                   <div class="muted">

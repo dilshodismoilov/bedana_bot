@@ -83,7 +83,7 @@ export function Cart() {
       <section class="card list">
         {lines.map(({ product, qty }) => (
           <div class="row" key={product.id}>
-            <img class="thumb" src={product.image} alt="" />
+            <img class="thumb" src={product.images[0]} alt="" />
             <div class="row-main">
               <div>{product.name}</div>
               <div class="muted">

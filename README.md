@@ -1,9 +1,9 @@
 # Bedana shop
 
-Telegram Mini App for selling quail eggs and similar products. Customers browse, fill a cart, drop a pin on the map for delivery and place an order. The order is posted to a private Telegram group with an **Ochish** button that opens the order in the app, followed by the delivery location as a Telegram location message. The customer gets a confirmation in their private chat with the bot (the app asks Telegram for permission to message them at checkout). Payment happens outside the app. Admins switch each order to paid and to completed (delivered) independently, and the group message updates itself.
+Telegram Mini App for selling quail eggs and similar products. Customers browse, open a product to see its photos and description, fill a cart, drop a pin on the map for delivery and place an order. The order is posted to a private Telegram group with an **Ochish** button that opens the order in the app, followed by the delivery location as a Telegram location message. The customer gets a confirmation in their private chat with the bot (the app asks Telegram for permission to message them at checkout). Payment happens outside the app. Admins switch each order to paid and to completed (delivered) independently, and the group message updates itself.
 
 - **Admins are the members of the orders group.** To add an admin, add them to the group; to remove one, remove them from it.
-- Prices are per piece in so'm. There is no stock tracking.
+- Each product has up to 10 photos (the first one is the catalog cover), a price per piece in so'm and an optional description. There is no stock tracking.
 - Everything the shop stores is in `data/`: the SQLite database and the uploaded images.
 
 Stack: Node.js 24 + [Hono](https://hono.dev) + built-in `node:sqlite` on the server (TypeScript runs directly, no server build). Preact + Vite for the Mini App. One process serves the API, the app and the images.

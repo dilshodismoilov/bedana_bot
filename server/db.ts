@@ -49,6 +49,13 @@ const migrations = [
   `,
   // Completion (delivered) is tracked separately from payment.
   `ALTER TABLE orders ADD COLUMN completed_at TEXT;`,
+  // Product description and photo gallery: images is a JSON array of file names inside DATA_DIR/uploads, cover first.
+  `
+  ALTER TABLE products ADD COLUMN description TEXT NOT NULL DEFAULT '';
+  ALTER TABLE products ADD COLUMN images TEXT NOT NULL DEFAULT '[]';
+  UPDATE products SET images = json_array(image);
+  ALTER TABLE products DROP COLUMN image;
+  `,
 ];
 
 const { user_version } = db.prepare('PRAGMA user_version').get() as { user_version: number };

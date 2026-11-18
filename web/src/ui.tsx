@@ -165,6 +165,8 @@ const paths = {
   image: 'M4 5h16v14H4zM4 15l4-4 4 4 3-3 5 5M15 9h.01',
   chevron: 'M9 6l6 6-6 6',
   locate: 'M12 2v3M12 19v3M2 12h3M19 12h3M12 7a5 5 0 1 1 0 10a5 5 0 1 1 0-10',
+  plus: 'M12 5v14M5 12h14',
+  trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',
 };
 
 export function Icon({ name }: { name: keyof typeof paths }) {

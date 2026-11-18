@@ -27,28 +27,31 @@ const call = async (method: string, path: string, body?: unknown) => {
   return { status: res.status, body: (await res.json()) as any };
 };
 
-const productForm = (name: string, price: number, withImage = true) => {
+const photo = () => new File([new Uint8Array([1, 2, 3])], 'a.jpg', { type: 'image/jpeg' });
+
+/** `images`: a new file per `'new'`, or a URL the product already has. */
+const productForm = (name: string, price: number, images: ('new' | string)[] = ['new'], description = '') => {
   const f = new FormData();
   f.set('name', name);
   f.set('price', String(price));
-  if (withImage) f.set('image', new File([new Uint8Array([1, 2, 3])], 'a.jpg', { type: 'image/jpeg' }));
+  f.set('description', description);
+  for (const i of images) f.append('images', i === 'new' ? photo() : i);
   return f;
 };
 
 test('product CRUD, order with server-side pricing, paid toggle', async () => {
   const created = await call('POST', '/products', productForm('Bedana tuxumi', 1500));
   assert.equal(created.status, 201);
-  assert.match(created.body.image, /^\/uploads\/.+\.jpg$/);
+  assert.equal(created.body.images.length, 1);
+  assert.match(created.body.images[0], /^\/uploads\/.+\.jpg$/);
+  assert.equal((await app.request(created.body.images[0])).status, 200);
 
-  const image = await app.request(created.body.image);
-  assert.equal(image.status, 200);
+  assert.equal((await call('POST', '/products', productForm('No image', 10, []))).status, 400);
 
-  assert.equal((await call('POST', '/products', productForm('No image', 10, false))).status, 400);
-
-  const updated = await call('PUT', `/products/${created.body.id}`, productForm('Bedana tuxumi', 1600, false));
+  const updated = await call('PUT', `/products/${created.body.id}`, productForm('Bedana tuxumi', 1600, created.body.images));
   assert.equal(updated.body.price, 1600);
-  assert.equal(updated.body.image, created.body.image);
-  assert.deepEqual(Object.keys(created.body).sort(), ['id', 'image', 'name', 'price'], 'no internal fields leak');
+  assert.deepEqual(updated.body.images, created.body.images);
+  assert.deepEqual(Object.keys(created.body).sort(), ['description', 'id', 'images', 'name', 'price'], 'no internal fields leak');
 
   const order = await call('POST', '/orders', {
     name: 'Ali',
@@ -74,6 +77,31 @@ test('product CRUD, order with server-side pricing, paid toggle', async () => {
 
   const stale = await call('POST', '/orders', { name: 'A', phone: '1', location: HERE, items: [{ productId: created.body.id, qty: 1 }] });
   assert.equal(stale.status, 400);
+});
+
+test('product gallery: add, reorder and remove photos; description', async () => {
+  const p = await call('POST', '/products', productForm('Bedana', 100, ['new', 'new', 'new'], '  Yangi\r\ntuxum  '));
+  assert.equal(p.status, 201);
+  assert.equal(p.body.description, 'Yangi\ntuxum', 'trimmed, line breaks normalized');
+  const [a, b, c] = p.body.images;
+  assert.equal(new Set(p.body.images).size, 3);
+
+  // Move the last photo first, drop the middle one, add a new one at the end.
+  const edited = await call('PUT', `/products/${p.body.id}`, productForm('Bedana', 100, [c, a, 'new']));
+  assert.equal(edited.status, 200);
+  assert.deepEqual(edited.body.images.slice(0, 2), [c, a]);
+  assert.equal(edited.body.images.length, 3);
+  assert.equal((await app.request(b)).status, 404, 'removed photo is deleted from disk');
+
+  const update = (images: string[]) => call('PUT', `/products/${p.body.id}`, productForm('Bedana', 100, images));
+  assert.equal((await update([b])).status, 400, 'a photo of the product that was removed');
+  assert.equal((await update([a, a])).status, 400, 'the same photo twice');
+  assert.equal((await update(['/uploads/../shop.db'])).status, 400, 'not a photo of this product');
+  assert.equal((await update(Array(11).fill('new'))).status, 400, 'too many photos');
+  assert.deepEqual((await call('GET', '/products')).body.find((x: any) => x.id === p.body.id).images, edited.body.images, 'rejected edits change nothing');
+
+  assert.equal((await call('DELETE', `/products/${p.body.id}`)).status, 200);
+  for (const url of edited.body.images) assert.equal((await app.request(url)).status, 404);
 });
 
 test('customers cannot use admin endpoints or see other customers orders', async () => {
