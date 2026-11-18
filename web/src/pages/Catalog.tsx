@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'wouter-preact';
 import type { Me, Product } from '../../../shared/types.ts';
 import { useApi } from '../api.ts';
-import { cart, cartLines, linesTotal, setQty } from '../cart.ts';
+import { cart, cartLines, linesTotal, saleOptions, setQty } from '../cart.ts';
 import { money } from '../format.ts';
 import { Icon, MainButton, QtyInput, Status, UnitPrice } from '../ui.tsx';
 
@@ -42,7 +42,7 @@ export function Catalog() {
       ) : (
         <div class="grid">
           {products.data.map((p) => (
-            <ProductCard key={p.id} product={p} qty={cart.value[p.id] ?? 0} />
+            <ProductCard key={p.id} product={p} />
           ))}
         </div>
       )}
@@ -55,17 +55,21 @@ export function Catalog() {
   );
 }
 
-function ProductCard({ product, qty }: { product: Product; qty: number }) {
+function ProductCard({ product }: { product: Product }) {
   return (
     <div class="card product">
       <Link href={`/products/${product.id}`} class="product-link">
         <img src={product.images[0]} alt="" loading="lazy" />
         <div class="product-name">{product.name}</div>
-        <div class="product-price">
-          <UnitPrice value={product.price} unit={product.unit} />
-        </div>
       </Link>
-      <QtyInput qty={qty} unit={product.unit} onChange={(n) => setQty(product.id, n)} />
+      {saleOptions(product).map((o) => (
+        <div class="product-option" key={o.key}>
+          <div class="product-price">
+            <UnitPrice value={o.price} unit={o.unit} packSize={product.pack?.size} />
+          </div>
+          <QtyInput qty={cart.value[o.key] ?? 0} unit={o.unit} onChange={(n) => setQty(o.key, n)} />
+        </div>
+      ))}
     </div>
   );
 }

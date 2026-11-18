@@ -2,7 +2,7 @@ import { useRef, useState } from 'preact/hooks';
 import { useLocation } from 'wouter-preact';
 import type { Product } from '../../../shared/types.ts';
 import { useApi } from '../api.ts';
-import { cart, cartLines, linesTotal, setQty } from '../cart.ts';
+import { cart, cartLines, linesTotal, saleOptions, setQty } from '../cart.ts';
 import { money } from '../format.ts';
 import { BackButton, MainButton, QtyInput, Status, UnitPrice } from '../ui.tsx';
 
@@ -23,10 +23,12 @@ export function ProductPage({ id }: { id: number }) {
           <Gallery key={product.id} images={product.images} />
           <section class="card product-info">
             <h1>{product.name}</h1>
-            <div class="product-buy">
-              <UnitPrice value={product.price} unit={product.unit} />
-              <QtyInput qty={cart.value[product.id] ?? 0} unit={product.unit} onChange={(n) => setQty(product.id, n)} />
-            </div>
+            {saleOptions(product).map((o) => (
+              <div class="product-buy" key={o.key}>
+                <UnitPrice value={o.price} unit={o.unit} packSize={product.pack?.size} />
+                <QtyInput qty={cart.value[o.key] ?? 0} unit={o.unit} onChange={(n) => setQty(o.key, n)} />
+              </div>
+            ))}
             {product.description && <p class="product-description">{product.description}</p>}
           </section>
         </>

@@ -30,11 +30,13 @@ const call = async (method: string, path: string, body?: unknown) => {
 const photo = () => new File([new Uint8Array([1, 2, 3])], 'a.jpg', { type: 'image/jpeg' });
 
 /** `images`: a new file per `'new'`, or a URL the product already has. */
-const productForm = (name: string, price: number, images: ('new' | string)[] = ['new'], description = '', unit = 'piece') => {
+const productForm = (name: string, price: number, images: ('new' | string)[] = ['new'], description = '', unit = 'piece', pack = ['', '']) => {
   const f = new FormData();
   f.set('name', name);
-  f.set('price', String(price));
+  f.set('price', price ? String(price) : ''); // 0: no price per piece
   f.set('unit', unit);
+  f.set('packSize', pack[0]);
+  f.set('packPrice', pack[1]);
   f.set('description', description);
   for (const i of images) f.append('images', i === 'new' ? photo() : i);
   return f;
@@ -52,7 +54,7 @@ test('product CRUD, order with server-side pricing, paid toggle', async () => {
   const updated = await call('PUT', `/products/${created.body.id}`, productForm('Bedana tuxumi', 1600, created.body.images));
   assert.equal(updated.body.price, 1600);
   assert.deepEqual(updated.body.images, created.body.images);
-  assert.deepEqual(Object.keys(created.body).sort(), ['description', 'id', 'images', 'name', 'price', 'unit'], 'no internal fields leak');
+  assert.deepEqual(Object.keys(created.body).sort(), ['description', 'id', 'images', 'name', 'pack', 'price', 'unit'], 'no internal fields leak');
 
   const order = await call('POST', '/orders', {
     name: 'Ali',
@@ -115,6 +117,41 @@ test('products sold by the kilogram take 100 g steps; pieces stay whole', async 
   // Order items keep the unit they were sold in after the product changes.
   await call('PUT', `/products/${meat.body.id}`, productForm("Bedana go'shti", 85_000, meat.body.images));
   assert.deepEqual((await call('GET', `/orders/${order.body.id}`)).body.items[0].unit, 'kg');
+});
+
+test('packs: own price, whole packs only, only for products sold by the piece', async () => {
+  const quail = await call('POST', '/products', productForm("Bedana go'shti", 7_000, ['new'], '', 'piece', ['10', '65000']));
+  assert.deepEqual(quail.body.pack, { size: 10, price: 65_000 });
+  assert.equal((await call('POST', '/products', productForm('X', 1, ['new'], '', 'piece', ['10', '']))).status, 400, 'pack without a price');
+  const kg = await call('POST', '/products', productForm('Y', 1, ['new'], '', 'kg', ['10', '5']));
+  assert.equal(kg.body.pack, null, 'kg products have no pack');
+
+  const place = (items: object[]) => call('POST', '/orders', { name: 'A', phone: '1', location: HERE, items });
+  const order = await place([
+    { productId: quail.body.id, qty: 2, pack: true },
+    { productId: quail.body.id, qty: 3 },
+  ]);
+  assert.equal(order.status, 201);
+  assert.equal(order.body.total, 2 * 65_000 + 3 * 7_000);
+  assert.deepEqual(
+    order.body.items.map((i: any) => [i.unit, i.qty, i.price]),
+    [['pack', 2, 65_000], ['piece', 3, 7_000]],
+  );
+  assert.equal((await place([{ productId: quail.body.id, qty: 1.5, pack: true }])).status, 400, 'whole packs only');
+  assert.equal((await place([{ productId: kg.body.id, qty: 1, pack: true }])).status, 400, 'no pack to sell');
+
+  // No price per piece: sold only in packs.
+  const packOnly = await call('POST', '/products', productForm('Faqat pachka', 0, ['new'], '', 'piece', ['10', '70000']));
+  assert.equal(packOnly.status, 201);
+  assert.equal(packOnly.body.price, null);
+  assert.equal((await place([{ productId: packOnly.body.id, qty: 1, pack: true }])).body.total, 70_000);
+  assert.equal((await place([{ productId: packOnly.body.id, qty: 10 }])).status, 400, 'no single pieces');
+  assert.equal((await call('POST', '/products', productForm('Z', 0))).status, 400, 'no price and no pack');
+
+  // Removing the pack keeps the product; past orders keep their pack lines.
+  const noPack = await call('PUT', `/products/${quail.body.id}`, productForm("Bedana go'shti", 7_000, quail.body.images));
+  assert.equal(noPack.body.pack, null);
+  assert.equal((await call('GET', `/orders/${order.body.id}`)).body.items[0].unit, 'pack');
 });
 
 test('product gallery: add, reorder and remove photos; description', async () => {

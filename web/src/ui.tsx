@@ -3,8 +3,8 @@
 import type { ComponentChildren } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { useLocation } from 'wouter-preact';
-import type { Order, Unit } from '../../shared/types.ts';
-import { MAX_QTY, QTY_DECIMALS, UNIT_LABEL } from '../../shared/units.ts';
+import type { Order, SaleUnit } from '../../shared/types.ts';
+import { MAX_QTY, perText, QTY_DECIMALS, UNIT_LABEL } from '../../shared/units.ts';
 import { money } from './format.ts';
 import { inTelegram, repaintMainButton, tg } from './tg.ts';
 
@@ -82,7 +82,7 @@ const qtyValue = (qty: number) => (qty ? String(qty).replace('.', ',') : '');
  * Keeps what was typed to a valid quantity for the unit: digits, plus for kg one decimal separator
  * (comma or point, shown as a comma) and at most QTY_DECIMALS digits after it. "1," stays while typing.
  */
-function cleanQty(typed: string, unit: Unit): string {
+function cleanQty(typed: string, unit: SaleUnit): string {
   const decimals = QTY_DECIMALS[unit];
   const [whole, ...rest] = typed.replace(/\./g, ',').replace(/[^\d,]/g, '').split(',');
   let s = whole.replace(/^0+(?=\d)/, '');
@@ -95,7 +95,7 @@ function cleanQty(typed: string, unit: Unit): string {
  * An emptied field removes the item when the field loses focus, so a cart row doesn't vanish
  * while a new number is being typed.
  */
-export function QtyInput({ qty, unit, onChange }: { qty: number; unit: Unit; onChange: (qty: number) => void }) {
+export function QtyInput({ qty, unit, onChange }: { qty: number; unit: SaleUnit; onChange: (qty: number) => void }) {
   const [value, setValue] = useState(qtyValue(qty));
   const focused = useRef(false);
 
@@ -140,12 +140,15 @@ export function QtyInput({ qty, unit, onChange }: { qty: number; unit: Unit; onC
   );
 }
 
-/** Price of one unit, e.g. "1 600 so'm / dona", "85 000 so'm / kg". The unit is dimmed so the number stays prominent. */
-export function UnitPrice({ value, unit }: { value: number; unit: Unit }) {
+/**
+ * Price of one unit, e.g. "1 600 so'm / dona", "85 000 so'm / kg", "70 000 so'm / 10 talik pachka".
+ * The unit is dimmed so the number stays prominent.
+ */
+export function UnitPrice({ value, unit, packSize }: { value: number; unit: SaleUnit; packSize?: number }) {
   return (
     <span class="unit-price">
       {money(value)}
-      <span class="unit"> / {UNIT_LABEL[unit]}</span>
+      <span class="unit"> / {perText(unit, packSize)}</span>
     </span>
   );
 }

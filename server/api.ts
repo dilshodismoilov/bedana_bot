@@ -3,7 +3,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { randomUUID } from 'node:crypto';
 import { unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { Me, NewOrder, OrderStatus } from '../shared/types.ts';
+import type { Me, NewOrder, OrderStatus, Pack } from '../shared/types.ts';
 import { isUnit, MAX_QTY } from '../shared/units.ts';
 import { adminOnly, auth, isAdmin, type AuthEnv } from './auth.ts';
 import { uploadsDir } from './db.ts';
@@ -113,6 +113,15 @@ const fail = (message: string): never => {
   throw new store.UserError(message);
 };
 
+/** Optional pack: both fields empty means none. */
+function pack(size: unknown, price: unknown): Pack | null {
+  if (!size && !price) return null;
+  return {
+    size: int(size, 2, MAX_QTY, 'Pachkadagi sonini kiriting'),
+    price: int(price, 1, 1_000_000_000, 'Pachka narxini kiriting'),
+  };
+}
+
 function quantity(value: unknown): number {
   if (typeof value !== 'number' || !(value > 0 && value <= MAX_QTY)) throw new store.UserError("Miqdor noto'g'ri");
   return value;
@@ -130,10 +139,14 @@ function productFields(body: Record<string, unknown>) {
   // Multipart forms send line breaks as \r\n.
   const description = typeof body.description === 'string' ? body.description.replace(/\r\n?/g, '\n').trim() : '';
   if (description.length > 2000) throw new store.UserError('Tavsif juda uzun');
+  const unit = isUnit(body.unit) ? body.unit : fail("O'lchov birligini tanlang");
+  const packed = unit === 'piece' ? pack(body.packSize, body.packPrice) : null;
   return {
     name: text(body.name, 100, 'Nomini kiriting'),
-    price: int(body.price, 1, 1_000_000_000, 'Narxni kiriting'),
-    unit: isUnit(body.unit) ? body.unit : fail("O'lchov birligini tanlang"),
+    // No price per piece means the product is sold only in packs.
+    price: packed && !body.price ? null : int(body.price, 1, 1_000_000_000, 'Narxni kiriting'),
+    unit,
+    pack: packed,
     description,
   };
 }
@@ -148,6 +161,7 @@ function parseNewOrder(body: any): NewOrder {
     items: items.map((i: any) => ({
       productId: int(i?.productId, 1, Number.MAX_SAFE_INTEGER, 'Savatda xatolik'),
       qty: quantity(i?.qty), // checked against the product's unit when the order is created
+      pack: i?.pack === true,
     })),
   };
 }

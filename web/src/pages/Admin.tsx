@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'wouter-preact';
 import type { Order, Product } from '../../../shared/types.ts';
 import { useApi } from '../api.ts';
+import { saleOptions } from '../cart.ts';
 import { BackButton, Icon, MainButton, Status, UnitPrice } from '../ui.tsx';
 import { OrderRow } from './OrderRow.tsx';
 
@@ -60,7 +61,11 @@ export function AdminProducts() {
                 <div class="row-main">
                   <div>{p.name}</div>
                   <div class="muted">
-                    <UnitPrice value={p.price} unit={p.unit} />
+                    {saleOptions(p).map((o) => (
+                      <div key={o.key}>
+                        <UnitPrice value={o.price} unit={o.unit} packSize={p.pack?.size} />
+                      </div>
+                    ))}
                   </div>
                 </div>
                 <Icon name="chevron" />

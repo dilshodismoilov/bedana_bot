@@ -1,5 +1,5 @@
 // All SQL lives here. Functions return shared types, never raw rows.
-import type { Contact, LatLng, NewOrder, Order, OrderItem, OrderStatus, Product, Unit } from '../shared/types.ts';
+import type { Contact, LatLng, NewOrder, Order, OrderItem, OrderStatus, Pack, Product, Unit } from '../shared/types.ts';
 import { lineTotal, normalizeQty } from '../shared/units.ts';
 import { db, tx } from './db.ts';
 
@@ -8,8 +8,9 @@ type Row = Record<string, any>;
 const toProduct = (r: Row): Product => ({
   id: r.id,
   name: r.name,
-  price: r.price,
+  price: r.price || null, // stored as 0 when sold only in packs (the column is NOT NULL)
   unit: r.unit,
+  pack: r.pack_size ? { size: r.pack_size, price: r.pack_price } : null,
   description: r.description,
   images: (JSON.parse(r.images) as string[]).map((f) => `/uploads/${f}`),
 });
@@ -57,20 +58,22 @@ export function getProductImageFiles(id: number): string[] | null {
   return r ? JSON.parse(r.images) : null;
 }
 
-type ProductInput = { name: string; price: number; unit: Unit; description: string; imageFiles: string[] };
+type ProductInput = { name: string; price: number | null; unit: Unit; pack: Pack | null; description: string; imageFiles: string[] };
 
 export function createProduct(p: ProductInput): Product {
   const { lastInsertRowid } = db
-    .prepare('INSERT INTO products (name, price, unit, description, images, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(p.name, p.price, p.unit, p.description, JSON.stringify(p.imageFiles), new Date().toISOString());
+    .prepare('INSERT INTO products (name, price, unit, pack_size, pack_price, description, images, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(p.name, p.price ?? 0, p.unit, p.pack?.size ?? null, p.pack?.price ?? null, p.description, JSON.stringify(p.imageFiles), new Date().toISOString());
   return getProduct(Number(lastInsertRowid))!;
 }
 
 export function updateProduct(id: number, p: ProductInput): Product {
-  db.prepare('UPDATE products SET name = ?, price = ?, unit = ?, description = ?, images = ? WHERE id = ?').run(
+  db.prepare('UPDATE products SET name = ?, price = ?, unit = ?, pack_size = ?, pack_price = ?, description = ?, images = ? WHERE id = ?').run(
     p.name,
-    p.price,
+    p.price ?? 0,
     p.unit,
+    p.pack?.size ?? null,
+    p.pack?.price ?? null,
     p.description,
     JSON.stringify(p.imageFiles),
     id,
@@ -86,13 +89,16 @@ export function deleteProduct(id: number): void {
 
 export function createOrder(userId: number, input: NewOrder): Order {
   return tx(() => {
-    const items = input.items.map(({ productId, qty }) => {
+    const items = input.items.map(({ productId, qty, pack }) => {
       const p = getProduct(productId);
       if (!p) throw new UserError("Savatdagi mahsulot endi mavjud emas. Savatni yangilang.");
+      if (pack && !p.pack) throw new UserError(`"${p.name}" endi pachkada sotilmaydi. Savatni yangilang.`);
+      if (!pack && p.price === null) throw new UserError(`"${p.name}" faqat pachkada sotiladi. Savatni yangilang.`);
+      const unit = pack ? 'pack' : p.unit;
       // Checked against the product's current unit, so 1.5 is rejected for a product sold by the piece.
-      const n = normalizeQty(qty, p.unit);
+      const n = normalizeQty(qty, unit);
       if (n === null) throw new UserError(`"${p.name}" miqdori noto'g'ri`);
-      return { productId, name: p.name, price: p.price, unit: p.unit, qty: n };
+      return { productId, name: p.name, price: pack ? p.pack!.price : p.price!, unit, qty: n };
     });
     const total = items.reduce((sum, i) => sum + lineTotal(i.price, i.qty), 0);
 

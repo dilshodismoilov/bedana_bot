@@ -61,6 +61,11 @@ const migrations = [
   ALTER TABLE products ADD COLUMN unit TEXT NOT NULL DEFAULT 'piece';
   ALTER TABLE order_items ADD COLUMN unit TEXT NOT NULL DEFAULT 'piece';
   `,
+  // Optional pack for products sold by the piece: pieces per pack and the pack's own price. Order items use unit 'pack'.
+  `
+  ALTER TABLE products ADD COLUMN pack_size INTEGER;
+  ALTER TABLE products ADD COLUMN pack_price INTEGER;
+  `,
 ];
 
 const { user_version } = db.prepare('PRAGMA user_version').get() as { user_version: number };

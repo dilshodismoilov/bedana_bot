@@ -3,11 +3,17 @@
 /** How a product is sold and priced: per piece, or per kilogram (quantities in 100 g steps). See units.ts. */
 export type Unit = 'piece' | 'kg';
 
+/** How an order line is sold: in the product's unit, or in packs (only products sold by the piece have packs). */
+export type SaleUnit = Unit | 'pack';
+
+export type Pack = { size: number; price: number }; // pieces per pack, price of one pack
+
 export type Product = {
   id: number;
   name: string;
-  price: number; // per unit
+  price: number | null; // per unit; null when the product is sold only in packs
   unit: Unit;
+  pack: Pack | null; // a pack of pieces sold at its own price; null when the product has none
   description: string; // may be empty
   images: string[]; // URL paths, e.g. /uploads/abc.jpg; at least one, the first is the cover
 };
@@ -24,8 +30,8 @@ export type OrderItem = {
   productId: number | null; // null once the product is deleted; name/price are snapshots
   name: string;
   price: number;
-  unit: Unit;
-  qty: number; // whole for pieces, may have a decimal for kg
+  unit: SaleUnit;
+  qty: number; // whole for pieces and packs, may have a decimal for kg
 };
 
 export type Order = Contact & {
@@ -43,7 +49,7 @@ export type OrderStatus = 'paid' | 'completed';
 
 export type NewOrder = Omit<Contact, 'location'> & {
   location: LatLng;
-  items: { productId: number; qty: number }[];
+  items: { productId: number; qty: number; pack?: boolean }[]; // pack: qty is a number of packs
 };
 
 export type Me = {

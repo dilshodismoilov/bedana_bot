@@ -184,6 +184,11 @@ h1 {
   font-weight: 600;
 }
 
+/* A second way to buy (by the pack) under the first one. */
+.product-option + .product-option {
+  margin-top: 12px;
+}
+
 /* ---------- product screen ---------- */
 
 .gallery {

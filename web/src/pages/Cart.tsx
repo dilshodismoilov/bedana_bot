@@ -61,7 +61,7 @@ export function Cart() {
     try {
       const order = await api<Order>('/orders', {
         method: 'POST',
-        json: { ...form, items: lines.map((l) => ({ productId: l.product.id, qty: l.qty })) },
+        json: { ...form, items: lines.map((l) => ({ productId: l.product.id, qty: l.qty, pack: l.pack })) },
       });
       haptic.success();
       prime(`/orders/${order.id}`, order);
@@ -82,18 +82,18 @@ export function Cart() {
       <BackButton to="/" />
 
       <section class="card list">
-        {lines.map(({ product, qty }) => (
-          <div class="row" key={product.id}>
-            <img class="thumb" src={product.images[0]} alt="" />
+        {lines.map((l) => (
+          <div class="row" key={l.key}>
+            <img class="thumb" src={l.product.images[0]} alt="" />
             <div class="row-main">
-              <div>{product.name}</div>
+              <div>{l.product.name}</div>
               <div class="muted">
-                <UnitPrice value={product.price} unit={product.unit} />
+                <UnitPrice value={l.price} unit={l.unit} packSize={l.product.pack?.size} />
               </div>
             </div>
             <div class="row-end">
-              <QtyInput qty={qty} unit={product.unit} onChange={(n) => setQty(product.id, n)} />
-              <div>{money(lineTotal(product.price, qty))}</div>
+              <QtyInput qty={l.qty} unit={l.unit} onChange={(n) => setQty(l.key, n)} />
+              <div>{money(lineTotal(l.price, l.qty))}</div>
             </div>
           </div>
         ))}

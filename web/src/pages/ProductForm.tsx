@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { useLocation } from 'wouter-preact';
 import type { Product, Unit } from '../../../shared/types.ts';
-import { UNIT_LABEL } from '../../../shared/units.ts';
+import { PRODUCT_UNITS, UNIT_LABEL } from '../../../shared/units.ts';
 import { api, useApi } from '../api.ts';
 import { centerSquare, ImageCrop } from '../crop.tsx';
 import { alert, confirm, haptic } from '../tg.ts';
@@ -24,6 +24,8 @@ export function ProductForm({ id }: { id: number | null }) {
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [unit, setUnit] = useState<Unit>('piece');
+  const [packSize, setPackSize] = useState(''); // both pack fields empty: no pack
+  const [packPrice, setPackPrice] = useState('');
   const [description, setDescription] = useState('');
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [selected, setSelected] = useState(0);
@@ -35,13 +37,21 @@ export function ProductForm({ id }: { id: number | null }) {
   useEffect(() => {
     if (!existing) return;
     setName(existing.name);
-    setPrice(String(existing.price));
+    setPrice(existing.price === null ? '' : String(existing.price));
     setUnit(existing.unit);
+    setPackSize(existing.pack ? String(existing.pack.size) : '');
+    setPackPrice(existing.pack ? String(existing.pack.price) : '');
     setDescription(existing.description);
     setPhotos(existing.images.map((src) => ({ src, upload: null, edited: false })));
   }, [existing?.id]);
 
   const markValid = (key: string) => setInvalid((s) => new Set([...s].filter((k) => k !== key)));
+
+  /** onInput for a whole-number field. */
+  const digits = (set: (v: string) => void, key: string) => (e: Event) => {
+    set((e.currentTarget as HTMLInputElement).value.replace(/\D/g, ''));
+    markValid(key);
+  };
 
   /** Crops photo `i` if it changed: the selected one as framed, any other one centered. */
   async function cropPhoto(list: Photo[], i: number): Promise<Photo[]> {
@@ -100,7 +110,10 @@ export function ProductForm({ id }: { id: number | null }) {
     const bad = new Set<string>();
     if (!photos.length) bad.add('image');
     if (!name.trim()) bad.add('name');
-    if (!(Number(price) > 0)) bad.add('price');
+    const hasPack = unit === 'piece' && (packSize || packPrice);
+    if (!(Number(price) > 0) && !(hasPack && !price)) bad.add('price'); // empty with a pack: sold only in packs
+    if (hasPack && !(Number(packSize) >= 2)) bad.add('packSize');
+    if (hasPack && !(Number(packPrice) > 0)) bad.add('packPrice');
     if (bad.size) {
       haptic.error();
       setInvalid(bad);
@@ -117,6 +130,8 @@ export function ProductForm({ id }: { id: number | null }) {
       form.set('name', name.trim());
       form.set('price', price);
       form.set('unit', unit);
+      form.set('packSize', hasPack ? packSize : '');
+      form.set('packPrice', hasPack ? packPrice : '');
       form.set('description', description.trim());
       for (const p of list) form.append('images', p.upload ? new File([p.upload], 'image.jpg', { type: 'image/jpeg' }) : p.src);
 
@@ -207,14 +222,11 @@ export function ProductForm({ id }: { id: number | null }) {
             placeholder="Narxi"
             inputMode="numeric"
             value={price}
-            onInput={(e) => {
-              setPrice(e.currentTarget.value.replace(/\D/g, ''));
-              markValid('price');
-            }}
+            onInput={digits(setPrice, 'price')}
           />
           <span class="muted">so'm /</span>
           <span class="unit-switch" role="radiogroup">
-            {(Object.keys(UNIT_LABEL) as Unit[]).map((u) => (
+            {PRODUCT_UNITS.map((u) => (
               <button
                 key={u}
                 type="button"
@@ -231,6 +243,18 @@ export function ProductForm({ id }: { id: number | null }) {
             ))}
           </span>
         </label>
+        {unit === 'piece' && (
+          <>
+            <label class={`suffix-field ${invalid.has('packSize') ? 'invalid' : ''}`}>
+              <input placeholder="Pachkada" inputMode="numeric" value={packSize} onInput={digits(setPackSize, 'packSize')} />
+              <span class="muted">ta</span>
+            </label>
+            <label class={`suffix-field ${invalid.has('packPrice') ? 'invalid' : ''}`}>
+              <input placeholder="Pachka narxi" inputMode="numeric" value={packPrice} onInput={digits(setPackPrice, 'packPrice')} />
+              <span class="muted">so'm / pachka</span>
+            </label>
+          </>
+        )}
         <AutoTextarea placeholder="Tavsif" maxLength={2000} value={description} onInput={setDescription} />
       </section>
 
