@@ -5,7 +5,7 @@ import { api, useApi } from '../api.ts';
 import { lineTotal, qtyText } from '../../../shared/units.ts';
 import { dateTime, money } from '../format.ts';
 import { LocationPreview } from '../map.tsx';
-import { alert, haptic } from '../tg.ts';
+import { alert, haptic, startOrderId } from '../tg.ts';
 import { BackButton, StatusBadges, Status } from '../ui.tsx';
 
 // Switches work the same in both directions with no confirmation: a mistaken tap is undone by tapping again.
@@ -34,7 +34,9 @@ export function OrderPage({ id }: { id: number }) {
   const branch = o?.fulfillment && pickupBranch(o.fulfillment);
   return (
     <div class="page">
-      <BackButton to={isAdmin ? '/admin' : '/orders'} />
+      {/* Opened from an Ochish button: no back button, so Telegram shows its close button in its place,
+          and one tap returns to the chat the button was in. */}
+      {startOrderId() !== id && <BackButton to={isAdmin ? '/admin' : '/orders'} />}
       {!o ? (
         <Status error={order.error} />
       ) : (
