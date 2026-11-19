@@ -21,7 +21,7 @@ const samples: [string, number, Unit, [number, number, number]][] = [
 for (const [name, price, unit, rgb] of samples) {
   const imageFile = `seed-${Math.random().toString(36).slice(2)}.png`;
   writeFileSync(join(uploadsDir, imageFile), solidPng(400, rgb));
-  createProduct({ name, price, unit, pack: unit === 'piece' ? { size: 10, price: price * 10 } : null, description: '', imageFiles: [imageFile] });
+  createProduct({ name, price, unit, pack: unit === 'piece' ? { size: 10, price: price * 10, unit: 'pack' } : null, description: '', imageFiles: [imageFile] });
 }
 console.log(`Seeded ${samples.length} products.`);
 

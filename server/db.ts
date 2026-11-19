@@ -68,6 +68,8 @@ const migrations = [
   `,
   // Pickup branch or delivery area (a Fulfillment id from shared/delivery.ts). Pickup orders have no lat/lng.
   `ALTER TABLE orders ADD COLUMN fulfillment TEXT;`,
+  // What the pack is called (a PackUnit: 'pack' = pachka, 'box' = korobka). Order items of a box use unit 'box'.
+  `ALTER TABLE products ADD COLUMN pack_unit TEXT NOT NULL DEFAULT 'pack';`,
 ];
 
 const { user_version } = db.prepare('PRAGMA user_version').get() as { user_version: number };

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { useLocation } from 'wouter-preact';
-import type { Product, Unit } from '../../../shared/types.ts';
-import { PRODUCT_UNITS, UNIT_LABEL } from '../../../shared/units.ts';
+import type { PackUnit, Product, Unit } from '../../../shared/types.ts';
+import { capitalLabel, PACK_UNITS, PRODUCT_UNITS, UNIT_LABEL } from '../../../shared/units.ts';
 import { api, useApi } from '../api.ts';
 import { centerSquare, ImageCrop } from '../crop.tsx';
 import { alert, confirm, haptic } from '../tg.ts';
@@ -26,6 +26,7 @@ export function ProductForm({ id }: { id: number | null }) {
   const [unit, setUnit] = useState<Unit>('piece');
   const [packSize, setPackSize] = useState(''); // both pack fields empty: no pack
   const [packPrice, setPackPrice] = useState('');
+  const [packUnit, setPackUnit] = useState<PackUnit>('pack');
   const [description, setDescription] = useState('');
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [selected, setSelected] = useState(0);
@@ -41,6 +42,7 @@ export function ProductForm({ id }: { id: number | null }) {
     setUnit(existing.unit);
     setPackSize(existing.pack ? String(existing.pack.size) : '');
     setPackPrice(existing.pack ? String(existing.pack.price) : '');
+    setPackUnit(existing.pack?.unit ?? 'pack');
     setDescription(existing.description);
     setPhotos(existing.images.map((src) => ({ src, upload: null, edited: false })));
   }, [existing?.id]);
@@ -132,6 +134,7 @@ export function ProductForm({ id }: { id: number | null }) {
       form.set('unit', unit);
       form.set('packSize', hasPack ? packSize : '');
       form.set('packPrice', hasPack ? packPrice : '');
+      form.set('packUnit', packUnit);
       form.set('description', description.trim());
       for (const p of list) form.append('images', p.upload ? new File([p.upload], 'image.jpg', { type: 'image/jpeg' }) : p.src);
 
@@ -246,12 +249,29 @@ export function ProductForm({ id }: { id: number | null }) {
         {unit === 'piece' && (
           <>
             <label class={`suffix-field ${invalid.has('packSize') ? 'invalid' : ''}`}>
-              <input placeholder="Pachkada" inputMode="numeric" value={packSize} onInput={digits(setPackSize, 'packSize')} />
+              <input placeholder={`${capitalLabel(packUnit)}da`} inputMode="numeric" value={packSize} onInput={digits(setPackSize, 'packSize')} />
               <span class="muted">ta</span>
             </label>
             <label class={`suffix-field ${invalid.has('packPrice') ? 'invalid' : ''}`}>
-              <input placeholder="Pachka narxi" inputMode="numeric" value={packPrice} onInput={digits(setPackPrice, 'packPrice')} />
-              <span class="muted">so'm / pachka</span>
+              <input placeholder={`${capitalLabel(packUnit)} narxi`} inputMode="numeric" value={packPrice} onInput={digits(setPackPrice, 'packPrice')} />
+              <span class="muted">so'm /</span>
+              <span class="unit-switch" role="radiogroup">
+                {PACK_UNITS.map((u) => (
+                  <button
+                    key={u}
+                    type="button"
+                    role="radio"
+                    aria-checked={u === packUnit}
+                    class={u === packUnit ? 'active' : ''}
+                    onClick={() => {
+                      setPackUnit(u);
+                      haptic.tap();
+                    }}
+                  >
+                    {UNIT_LABEL[u]}
+                  </button>
+                ))}
+              </span>
             </label>
           </>
         )}

@@ -16,7 +16,7 @@ export type SaleOption = { key: string; unit: SaleUnit; price: number; pack: boo
 
 export const saleOptions = (p: Product): SaleOption[] => [
   ...(p.price !== null ? [{ key: String(p.id), unit: p.unit, price: p.price, pack: false }] : []),
-  ...(p.pack ? [{ key: `${p.id}:pack`, unit: 'pack' as const, price: p.pack.price, pack: true }] : []),
+  ...(p.pack ? [{ key: `${p.id}:pack`, unit: p.pack.unit, price: p.pack.price, pack: true }] : []),
 ];
 
 export function setQty(key: string, qty: number) {

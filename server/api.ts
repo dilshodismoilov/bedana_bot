@@ -5,7 +5,7 @@ import { unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { isOffered, pickupBranch } from '../shared/delivery.ts';
 import type { LatLng, Me, NewOrder, OrderStatus, Pack } from '../shared/types.ts';
-import { isUnit, MAX_QTY } from '../shared/units.ts';
+import { capitalLabel, isPackUnit, isUnit, MAX_QTY } from '../shared/units.ts';
 import { adminOnly, auth, isAdmin, type AuthEnv } from './auth.ts';
 import { uploadsDir } from './db.ts';
 import * as store from './store.ts';
@@ -114,12 +114,14 @@ const fail = (message: string): never => {
   throw new store.UserError(message);
 };
 
-/** Optional pack: both fields empty means none. */
-function pack(size: unknown, price: unknown): Pack | null {
+/** Optional pack: both number fields empty means none. Called pachka unless korobka is chosen. */
+function pack(size: unknown, price: unknown, packUnit: unknown): Pack | null {
   if (!size && !price) return null;
+  const unit = isPackUnit(packUnit) ? packUnit : 'pack';
   return {
-    size: int(size, 2, MAX_QTY, 'Pachkadagi sonini kiriting'),
-    price: int(price, 1, 1_000_000_000, 'Pachka narxini kiriting'),
+    size: int(size, 2, MAX_QTY, `${capitalLabel(unit)}dagi sonini kiriting`),
+    price: int(price, 1, 1_000_000_000, `${capitalLabel(unit)} narxini kiriting`),
+    unit,
   };
 }
 
@@ -141,7 +143,7 @@ function productFields(body: Record<string, unknown>) {
   const description = typeof body.description === 'string' ? body.description.replace(/\r\n?/g, '\n').trim() : '';
   if (description.length > 2000) throw new store.UserError('Tavsif juda uzun');
   const unit = isUnit(body.unit) ? body.unit : fail("O'lchov birligini tanlang");
-  const packed = unit === 'piece' ? pack(body.packSize, body.packPrice) : null;
+  const packed = unit === 'piece' ? pack(body.packSize, body.packPrice, body.packUnit) : null;
   return {
     name: text(body.name, 100, 'Nomini kiriting'),
     // No price per piece means the product is sold only in packs.

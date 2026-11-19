@@ -4,10 +4,13 @@ import type { Fulfillment } from './delivery.ts';
 /** How a product is sold and priced: per piece, or per kilogram (quantities in 100 g steps). See units.ts. */
 export type Unit = 'piece' | 'kg';
 
-/** How an order line is sold: in the product's unit, or in packs (only products sold by the piece have packs). */
-export type SaleUnit = Unit | 'pack';
+/** What a pack is called: pachka or korobka. Same rules for both; only the word differs. */
+export type PackUnit = 'pack' | 'box';
 
-export type Pack = { size: number; price: number }; // pieces per pack, price of one pack
+/** How an order line is sold: in the product's unit, or in packs (only products sold by the piece have packs). */
+export type SaleUnit = Unit | PackUnit;
+
+export type Pack = { size: number; price: number; unit: PackUnit }; // pieces per pack, price of one pack, its name
 
 export type Product = {
   id: number;

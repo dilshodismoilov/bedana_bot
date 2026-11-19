@@ -30,13 +30,14 @@ const call = async (method: string, path: string, body?: unknown) => {
 const photo = () => new File([new Uint8Array([1, 2, 3])], 'a.jpg', { type: 'image/jpeg' });
 
 /** `images`: a new file per `'new'`, or a URL the product already has. */
-const productForm = (name: string, price: number, images: ('new' | string)[] = ['new'], description = '', unit = 'piece', pack = ['', '']) => {
+const productForm = (name: string, price: number, images: ('new' | string)[] = ['new'], description = '', unit = 'piece', pack = ['', '', '']) => {
   const f = new FormData();
   f.set('name', name);
   f.set('price', price ? String(price) : ''); // 0: no price per piece
   f.set('unit', unit);
   f.set('packSize', pack[0]);
   f.set('packPrice', pack[1]);
+  if (pack[2]) f.set('packUnit', pack[2]);
   f.set('description', description);
   for (const i of images) f.append('images', i === 'new' ? photo() : i);
   return f;
@@ -122,7 +123,7 @@ test('products sold by the kilogram take 100 g steps; pieces stay whole', async 
 
 test('packs: own price, whole packs only, only for products sold by the piece', async () => {
   const quail = await call('POST', '/products', productForm("Bedana go'shti", 7_000, ['new'], '', 'piece', ['10', '65000']));
-  assert.deepEqual(quail.body.pack, { size: 10, price: 65_000 });
+  assert.deepEqual(quail.body.pack, { size: 10, price: 65_000, unit: 'pack' }, 'a pack is a pachka unless chosen otherwise');
   assert.equal((await call('POST', '/products', productForm('X', 1, ['new'], '', 'piece', ['10', '']))).status, 400, 'pack without a price');
   const kg = await call('POST', '/products', productForm('Y', 1, ['new'], '', 'kg', ['10', '5']));
   assert.equal(kg.body.pack, null, 'kg products have no pack');
@@ -153,6 +154,32 @@ test('packs: own price, whole packs only, only for products sold by the piece', 
   const noPack = await call('PUT', `/products/${quail.body.id}`, productForm("Bedana go'shti", 7_000, quail.body.images));
   assert.equal(noPack.body.pack, null);
   assert.equal((await call('GET', `/orders/${order.body.id}`)).body.items[0].unit, 'pack');
+});
+
+test('a pack can be called korobka: same rules, its own word in orders and messages', async () => {
+  const eggs = await call('POST', '/products', productForm('Tuxum', 1_600, ['new'], '', 'piece', ['30', '45000', 'box']));
+  assert.equal(eggs.status, 201);
+  assert.deepEqual(eggs.body.pack, { size: 30, price: 45_000, unit: 'box' });
+  const bad = await call('POST', '/products', productForm('X', 1, ['new'], '', 'piece', ['30', '', 'box']));
+  assert.equal(bad.body.error, 'Korobka narxini kiriting');
+
+  const order = await call('POST', '/orders', {
+    name: 'A',
+    phone: '1',
+    fulfillment: 'delivery_tashkent',
+    location: HERE,
+    items: [{ productId: eggs.body.id, qty: 2, pack: true }],
+  });
+  assert.equal(order.status, 201);
+  assert.deepEqual(order.body.items.map((i: any) => [i.unit, i.qty, i.price]), [['box', 2, 45_000]]);
+  const { customerMessage, orderMessage } = await import('./telegram.ts');
+  assert.ok(orderMessage(order.body).text.includes('Tuxum: 2 korobka × 45 000'), 'group message');
+  assert.ok(customerMessage(order.body).text.includes('Tuxum (2 korobka)'), 'customer message');
+
+  // Switching back to pachka keeps past orders as korobka.
+  const renamed = await call('PUT', `/products/${eggs.body.id}`, productForm('Tuxum', 1_600, eggs.body.images, '', 'piece', ['30', '45000', 'pack']));
+  assert.equal(renamed.body.pack.unit, 'pack');
+  assert.equal((await call('GET', `/orders/${order.body.id}`)).body.items[0].unit, 'box');
 });
 
 test('product gallery: add, reorder and remove photos; description', async () => {
