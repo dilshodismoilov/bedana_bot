@@ -3,7 +3,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { randomUUID } from 'node:crypto';
 import { unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { isFulfillment, pickupBranch } from '../shared/delivery.ts';
+import { isOffered, pickupBranch } from '../shared/delivery.ts';
 import type { LatLng, Me, NewOrder, OrderStatus, Pack } from '../shared/types.ts';
 import { isUnit, MAX_QTY } from '../shared/units.ts';
 import { adminOnly, auth, isAdmin, type AuthEnv } from './auth.ts';
@@ -155,7 +155,7 @@ function productFields(body: Record<string, unknown>) {
 function parseNewOrder(body: any): NewOrder {
   const items = Array.isArray(body?.items) ? body.items : [];
   if (!items.length || items.length > 100) throw new store.UserError("Savat bo'sh");
-  const fulfillment = isFulfillment(body.fulfillment) ? body.fulfillment : fail('Olib ketish yoki yetkazib berishni tanlang');
+  const fulfillment = isOffered(body.fulfillment) ? body.fulfillment : fail('Olib ketish yoki yetkazib berishni tanlang');
   return {
     name: text(body.name, 100, 'Ismingizni kiriting'),
     phone: text(body.phone, 30, 'Telefon raqamingizni kiriting'),

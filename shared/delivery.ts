@@ -18,12 +18,13 @@ type Option = {
   note?: string; // shown after the title, dimmed in the app and in brackets in messages
   branch?: BranchId; // pickup: no customer location needed
   center?: LatLng; // where the delivery map starts before the customer picks a point
+  hidden?: true; // not offered for new orders yet; past orders with it still show it
 };
 
 /** In the order the customer sees them. Stored in orders.fulfillment by id, so never rename an id. */
 export const FULFILLMENTS: Record<Fulfillment, Option> = {
   pickup_fergana: { icon: '🏠', title: "O'zim olib ketaman — Farg'ona", branch: 'fergana' },
-  pickup_tashkent: { icon: '🏠', title: "O'zim olib ketaman — Toshkent", branch: 'tashkent' },
+  pickup_tashkent: { icon: '🏠', title: "O'zim olib ketaman — Toshkent", branch: 'tashkent', hidden: true },
   delivery_valley: {
     icon: '🚚',
     title: "Yetkazib berish — Farg'ona vodiysi",
@@ -36,7 +37,10 @@ export const FULFILLMENTS: Record<Fulfillment, Option> = {
 
 export const FULFILLMENT_IDS = Object.keys(FULFILLMENTS) as Fulfillment[];
 
-export const isFulfillment = (f: unknown): f is Fulfillment => FULFILLMENT_IDS.includes(f as Fulfillment);
+/** The options a new order can choose from: all but the hidden ones. */
+export const OFFERED_FULFILLMENTS = FULFILLMENT_IDS.filter((f) => !FULFILLMENTS[f].hidden);
+
+export const isOffered = (f: unknown): f is Fulfillment => OFFERED_FULFILLMENTS.includes(f as Fulfillment);
 
 /** The branch to pick the order up at, or null when it is delivered (the customer then gives their location). */
 export const pickupBranch = (f: Fulfillment) => {

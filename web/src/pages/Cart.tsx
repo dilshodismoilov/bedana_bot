@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { useLocation } from 'wouter-preact';
-import { FULFILLMENT_IDS, FULFILLMENTS, pickupBranch } from '../../../shared/delivery.ts';
+import { FULFILLMENTS, isOffered, OFFERED_FULFILLMENTS, pickupBranch } from '../../../shared/delivery.ts';
 import type { Contact, Me, Order, Product } from '../../../shared/types.ts';
 import { api, prime, useApi } from '../api.ts';
 import { cartLines, clearCart, draft, linesTotal, setQty } from '../cart.ts';
@@ -15,7 +15,7 @@ function invalidFields(c: Contact): (keyof Contact)[] {
   const bad: (keyof Contact)[] = [];
   if (!c.name.trim()) bad.push('name');
   if (c.phone.replace(/\D/g, '').length < 9) bad.push('phone');
-  if (!c.fulfillment) bad.push('fulfillment');
+  if (!isOffered(c.fulfillment)) bad.push('fulfillment'); // a hidden option kept from a draft or the last order counts as not chosen
   else if (!pickupBranch(c.fulfillment) && !c.location) bad.push('location');
   return bad;
 }
@@ -79,8 +79,9 @@ export function Cart() {
 
   if (!products.data) return <Status error={products.error} />;
 
-  const option = form.fulfillment && FULFILLMENTS[form.fulfillment];
-  const branch = form.fulfillment && pickupBranch(form.fulfillment);
+  const chosen = isOffered(form.fulfillment) ? form.fulfillment : null;
+  const option = chosen && FULFILLMENTS[chosen];
+  const branch = chosen && pickupBranch(chosen);
 
   return (
     <div class="page">
@@ -119,7 +120,7 @@ export function Cart() {
       </section>
 
       <section class={`card list choices ${invalid.fulfillment ? 'invalid' : ''}`} id="fulfillment" role="radiogroup">
-        {FULFILLMENT_IDS.map((f) => (
+        {OFFERED_FULFILLMENTS.map((f) => (
           <label class="row choice" key={f}>
             <span class="choice-icon">{FULFILLMENTS[f].icon}</span>
             <div class="row-main">

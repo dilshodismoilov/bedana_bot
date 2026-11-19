@@ -252,7 +252,7 @@ test('order validation', async () => {
     assert.equal(r.body.error, 'Yetkazib berish joyini xaritada belgilang');
   }
 
-  for (const fulfillment of [undefined, '', 'pickup', 'delivery']) {
+  for (const fulfillment of [undefined, '', 'pickup', 'delivery', 'pickup_tashkent' /* hidden: not offered yet */]) {
     const r = await call('POST', '/orders', { name: 'A', phone: '+998901234567', fulfillment, location: HERE, items: [{ productId: 1, qty: 1 }] });
     assert.equal(r.body.error, 'Olib ketish yoki yetkazib berishni tanlang', String(fulfillment));
   }
