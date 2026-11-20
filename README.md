@@ -35,6 +35,17 @@ To act as a specific user, open `http://localhost:5173/?as=<telegram user id>`. 
 2. **Mini App.** In BotFather: */mybots → your bot → Bot Settings → Configure Mini App → Enable Mini App*. Set the URL to `https://your-domain` and the screen mode to **Fullsize**. Then set `APP_LINK=https://t.me/<bot_username>`.
 3. **Orders group.** Create a private group and add the bot. With the server running, send `/here` in the group, and the bot replies with `GROUP_ID=…`. Put that line in `.env` and restart the server. The bot answers ✅ to `/here` once the group is connected.
    Every member of this group is a shop admin.
+4. **Log group (optional).** Create another private group (only for whoever watches the shop) and add the bot. Send `/here` there and put the number in `.env` as `LOG_GROUP_ID=…`, then restart. `/here` there then answers ✅ for logs. `LOG_LEVEL` picks what is sent:
+
+   | `LOG_LEVEL` | What reaches the group |
+   | --- | --- |
+   | `debug` | everything below, plus every API request with its time |
+   | `info` (default) | app opens (who, from where, how many orders so far), /start, orders, location requests and locations, admin changes to orders and products, server start |
+   | `warn` | requests slower than `SLOW_MS` (default 1500 ms), input the server refused, blocked admin calls, customers the bot couldn't message, errors in the app on the customer's phone |
+   | `error` | server errors with stack traces, crashes, bot polling failures |
+   | `off` | nothing (the console still gets info and above) |
+
+   Entries are collected for 3 seconds and sent as one message. Warnings and errors notify; the rest arrive silently.
 
 The server starts without `GROUP_ID`, so step 3 works on a fresh install; until it's set, orders aren't posted anywhere. Only one process can receive the bot's commands at a time. Don't run a local dev server with the production bot token while the VPS is running.
 

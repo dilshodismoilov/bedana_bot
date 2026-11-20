@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { createMiddleware } from 'hono/factory';
 import { env } from './env.ts';
+import { log, stack } from './log.ts';
 import { botApi, TelegramError } from './telegram.ts';
 
 export type TgUser = { id: number; first_name: string; last_name?: string; username?: string };
@@ -71,7 +72,7 @@ export async function isAdmin(userId: number): Promise<boolean> {
   } catch (e) {
     // Telegram answered (e.g. "user not found"): a definite no, cache it. Network failure: retry next request.
     if (!(e instanceof TelegramError)) {
-      console.error('[auth] getChatMember failed', e);
+      log.error('Admin check (getChatMember) failed', stack(e));
       return false;
     }
   }

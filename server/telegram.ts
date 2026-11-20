@@ -3,6 +3,7 @@ import { fulfillmentText, pickupBranch, SHOP_PHONE, yandexMapUrl } from '../shar
 import type { LatLng, Order } from '../shared/types.ts';
 import { lineTotal, qtyText } from '../shared/units.ts';
 import { env } from './env.ts';
+import { esc, log } from './log.ts';
 import { getOrderMessageId, setOrderMessageId, UserError } from './store.ts';
 
 /** Telegram rejected the call (as opposed to a network failure). */
@@ -23,7 +24,7 @@ const enabled = () => Boolean(env.botToken && env.groupId);
 
 /** Posts a new order to the orders group and remembers the message id. */
 export async function announceOrder(order: Order): Promise<void> {
-  if (!enabled()) return console.log(`[telegram] disabled, skipped announcing order #${order.id}`);
+  if (!enabled()) return log.debug(`Telegram off: order #${order.id} not posted`);
   const msg = await botApi<{ message_id: number }>('sendMessage', { chat_id: env.groupId, ...orderMessage(order) });
   setOrderMessageId(order.id, msg.message_id);
   // Delivery: a native location message, as a reply to the order, so the map shows right in the group.
@@ -35,7 +36,7 @@ export async function announceOrder(order: Order): Promise<void> {
       reply_parameters: { message_id: msg.message_id },
     });
   }
-  console.log(`[telegram] order #${order.id} posted to the group`);
+  log.debug(`Order #${order.id} posted to the orders group`);
 }
 
 /**
@@ -44,12 +45,13 @@ export async function announceOrder(order: Order): Promise<void> {
  */
 export async function requestLocation(userId: number): Promise<string | null> {
   if (!env.botToken) {
-    console.log(`[telegram] disabled, skipped asking user ${userId} for a location`);
+    log.debug(`Telegram off: user ${userId} not asked for a location`);
     return null;
   }
   try {
     await botApi('sendMessage', { chat_id: userId, ...locationRequest() });
   } catch (e) {
+    if (e instanceof TelegramError) log.warn(`Could not ask user <code>${userId}</code> for a location: ${esc(e.message)}`);
     if (e instanceof TelegramError) throw new UserError("Bot sizga yoza olmadi. Botni ishga tushiring va qayta urinib ko'ring.");
     throw e;
   }
@@ -67,10 +69,10 @@ export async function notifyCustomer(order: Order): Promise<void> {
   if (!env.botToken) return;
   try {
     await botApi('sendMessage', { chat_id: order.userId, ...customerMessage(order) });
-    console.log(`[telegram] order #${order.id} confirmation sent to the customer`);
+    log.debug(`Order #${order.id} confirmation sent to the customer`);
   } catch (e) {
     if (!(e instanceof TelegramError)) throw e;
-    console.log(`[telegram] could not message the customer of order #${order.id}: ${e.message}`);
+    log.warn(`Order #${order.id}: could not message the customer: ${esc(e.message)}`);
   }
 }
 
@@ -171,4 +173,3 @@ function htmlWithOpenButton(lines: string[], orderId: number) {
 
 const num = (n: number) => n.toLocaleString('en-US').replaceAll(',', ' ');
 const money = (n: number) => `${num(n)} so'm`;
-const esc = (s: string) => s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');

@@ -3,23 +3,63 @@ import { bodyLimit } from 'hono/body-limit';
 import { randomUUID } from 'node:crypto';
 import { unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { isOffered } from '../shared/delivery.ts';
+import { fulfillmentText, isOffered } from '../shared/delivery.ts';
 import type { Me, NewOrder, OrderStatus, Pack } from '../shared/types.ts';
 import { capitalLabel, isPackUnit, isUnit, MAX_QTY } from '../shared/units.ts';
-import { adminOnly, auth, isAdmin, type AuthEnv } from './auth.ts';
+import { adminOnly, auth, isAdmin, type AuthEnv, type TgUser } from './auth.ts';
 import { uploadsDir } from './db.ts';
+import { env } from './env.ts';
+import { esc, log, stack, who } from './log.ts';
 import * as store from './store.ts';
 import { announceOrder, notifyCustomer, refreshOrderMessage, requestLocation } from './telegram.ts';
 
 export const api = new Hono<AuthEnv>();
 
+// Before auth: unknown users (401) are a request too. `user` is unset until auth has run.
+const requester = (c: { var: { user?: TgUser } }) => (c.var.user ? who(c.var.user) : 'unknown user');
+const route = (c: { req: { method: string; path: string } }) => `<code>${c.req.method} ${esc(c.req.path)}</code>`;
+
 api.onError((err, c) => {
-  if (err instanceof store.UserError) return c.json({ error: err.message }, 400);
-  console.error(err);
+  if (err instanceof store.UserError) {
+    // Input the app should have prevented, or a customer stuck on something: worth a look.
+    log.warn(`${requester(c)} got "${esc(err.message)}" on ${route(c)}`);
+    return c.json({ error: err.message }, 400);
+  }
+  log.error(`${route(c)} failed for ${requester(c)}: ${esc(String(err))}`, stack(err));
   return c.json({ error: 'Serverda xatolik' }, 500);
 });
 
+api.use('*', async (c, next) => {
+  const started = performance.now();
+  await next();
+  const ms = Math.round(performance.now() - started);
+  const status = c.res.status;
+  const summary = `${route(c)} ${status} · ${ms} ms · ${requester(c)}`;
+  if (ms > env.slowMs) log.warn(`🐢 Slow: ${summary}`);
+  else if (status === 401 || status === 403) log.warn(`🔒 Refused: ${summary}`);
+  else log.debug(summary);
+});
+
 api.use('*', auth);
+
+// The app calls this once each time it opens: who uses it, from where, on what.
+api.post('/visit', async (c) => {
+  const body = await c.req.json<Record<string, unknown>>().catch(() => ({}) as Record<string, unknown>);
+  const user = c.get('user');
+  const { ordersCount } = store.userStats(user.id);
+  const start = typeof body.start === 'string' && body.start ? ` via <code>${esc(body.start.slice(0, 64))}</code>` : '';
+  const device = [body.platform, body.version].filter((v) => typeof v === 'string' && v).map((v) => esc(String(v).slice(0, 32))).join(' ');
+  log.info(`👤 ${who(user)} opened the app${start}${device ? ` · ${device}` : ''} · ${ordersCount ? `${ordersCount} orders so far` : 'no orders yet'}`);
+  return c.json({ ok: true });
+});
+
+// Errors in the web app (window error / unhandled rejection), reported by the client. Capped per app launch there.
+api.post('/client-error', async (c) => {
+  const body = await c.req.json<Record<string, unknown>>().catch(() => ({}) as Record<string, unknown>);
+  const text = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : '');
+  log.warn(`💥 App error for ${who(c.get('user'))} on <code>${esc(text(body.path, 100))}</code>: ${esc(text(body.message, 300))}`, text(body.stack, 1500) || undefined);
+  return c.json({ ok: true });
+});
 
 api.get('/me', async (c) => {
   const { id } = c.get('user');
@@ -28,7 +68,11 @@ api.get('/me', async (c) => {
 });
 
 // The bot asks the user in their private chat to send a location; the app then takes them there (bot.ts saves it).
-api.post('/location/request', async (c) => c.json({ chat: await requestLocation(c.get('user').id) }));
+api.post('/location/request', async (c) => {
+  const chat = await requestLocation(c.get('user').id);
+  log.info(`📍 ${who(c.get('user'))} tapped send location`);
+  return c.json({ chat });
+});
 
 // ---------- products ----------
 
@@ -43,7 +87,9 @@ api.post('/products', adminOnly, imageUpload, async (c) => {
   const body = await c.req.parseBody({ all: true });
   const fields = productFields(body);
   const imageFiles = await saveImages(body.images, []);
-  return c.json(store.createProduct({ ...fields, imageFiles }), 201);
+  const product = store.createProduct({ ...fields, imageFiles });
+  log.info(`🆕 ${who(c.get('user'))} added product "${esc(product.name)}"`);
+  return c.json(product, 201);
 });
 
 api.put('/products/:id', adminOnly, imageUpload, async (c) => {
@@ -55,6 +101,7 @@ api.put('/products/:id', adminOnly, imageUpload, async (c) => {
   const imageFiles = await saveImages(body.images, oldImages);
   const product = store.updateProduct(id, { ...fields, imageFiles });
   await removeImages(oldImages.filter((f) => !imageFiles.includes(f)));
+  log.info(`✏️ ${who(c.get('user'))} edited product "${esc(product.name)}"`);
   return c.json(product);
 });
 
@@ -62,8 +109,10 @@ api.delete('/products/:id', adminOnly, async (c) => {
   const id = Number(c.req.param('id'));
   const images = store.getProductImageFiles(id);
   if (!images) return c.json({ error: 'Mahsulot topilmadi' }, 404);
+  const name = store.getProduct(id)?.name ?? String(id);
   store.deleteProduct(id);
   await removeImages(images);
+  log.info(`🗑 ${who(c.get('user'))} deleted product "${esc(name)}"`);
   return c.json({ ok: true });
 });
 
@@ -83,8 +132,10 @@ api.get('/orders/:id', async (c) => {
 api.post('/orders', async (c) => {
   const input = parseNewOrder(await c.req.json().catch(() => null));
   const order = store.createOrder(c.get('user').id, input);
-  announceOrder(order).catch((e) => console.error('[telegram] announce failed', e));
-  notifyCustomer(order).catch((e) => console.error('[telegram] customer message failed', e));
+  const total = `${order.total.toLocaleString('en-US').replaceAll(',', ' ')} so'm`;
+  log.info(`🛒 ${who(c.get('user'))} placed order #${order.id} · ${total} · ${order.fulfillment ? esc(fulfillmentText(order.fulfillment)) : ''}`);
+  announceOrder(order).catch((e) => log.error(`Order #${order.id} was not posted to the orders group`, stack(e)));
+  notifyCustomer(order).catch((e) => log.error(`Order #${order.id}: the customer confirmation failed`, stack(e)));
   return c.json(order, 201);
 });
 
@@ -94,7 +145,8 @@ for (const status of ['paid', 'completed'] as const satisfies readonly OrderStat
     const body = await c.req.json<Record<string, unknown>>().catch(() => ({}) as Record<string, unknown>);
     const order = store.setOrderStatus(Number(c.req.param('id')), status, body[status] === true);
     if (!order) return c.json({ error: 'Buyurtma topilmadi' }, 404);
-    refreshOrderMessage(order).catch((e) => console.error('[telegram] refresh failed', e));
+    log.info(`${who(c.get('user'))} set order #${order.id} ${body[status] === true ? '' : 'not '}${status}`);
+    refreshOrderMessage(order).catch((e) => log.error(`Order #${order.id}: updating the group message failed`, stack(e)));
     return c.json(order);
   });
 }
