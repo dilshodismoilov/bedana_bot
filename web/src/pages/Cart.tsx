@@ -6,8 +6,8 @@ import { api, prime, useApi } from '../api.ts';
 import { cartLines, clearCart, draft, linesTotal, setQty } from '../cart.ts';
 import { lineTotal } from '../../../shared/units.ts';
 import { money } from '../format.ts';
-import { LocationPicker, LocationPreview } from '../map.tsx';
-import { alert, allowBotMessages, haptic, tg } from '../tg.ts';
+import { LocationPreview } from '../map.tsx';
+import { alert, allowBotMessages, haptic, inTelegram, tg } from '../tg.ts';
 import { BackButton, MainButton, QtyInput, Status, UnitPrice } from '../ui.tsx';
 
 /** Checkout fields that are missing or wrong, in screen order. */
@@ -16,7 +16,6 @@ function invalidFields(c: Contact): (keyof Contact)[] {
   if (!c.name.trim()) bad.push('name');
   if (c.phone.replace(/\D/g, '').length < 9) bad.push('phone');
   if (!isOffered(c.fulfillment)) bad.push('fulfillment'); // a hidden option kept from a draft or the last order counts as not chosen
-  else if (!pickupBranch(c.fulfillment) && !c.location) bad.push('location');
   return bad;
 }
 
@@ -33,9 +32,9 @@ export function Cart() {
 
   // Prefill from the last order, or from the Telegram profile on the first order.
   useEffect(() => {
-    if (!me.data || form.name || form.phone || form.fulfillment || form.location) return;
+    if (!me.data || form.name || form.phone || form.fulfillment) return;
     const u = tg.initDataUnsafe.user;
-    draft.value = me.data.contact ?? { name: [u?.first_name, u?.last_name].filter(Boolean).join(' '), phone: '', fulfillment: null, location: null };
+    draft.value = me.data.contact ?? { name: [u?.first_name, u?.last_name].filter(Boolean).join(' '), phone: '', fulfillment: null };
   }, [me.data]);
 
   // Emptied the cart from here: nothing left to check out.
@@ -54,12 +53,12 @@ export function Cart() {
     if (bad.length) {
       haptic.error();
       setInvalid(Object.fromEntries(bad.map((k) => [k, true])));
-      if (bad[0] === 'fulfillment' || bad[0] === 'location') document.getElementById(bad[0])?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (bad[0] === 'fulfillment') document.getElementById(bad[0])?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       else document.querySelector<HTMLElement>(`[name=${bad[0]}]`)?.focus();
       return;
     }
     setSending(true);
-    await allowBotMessages(); // so the bot can send the order confirmation to the customer's chat
+    const canMessage = await allowBotMessages(); // so the bot can send the order confirmation to the customer's chat
     try {
       const order = await api<Order>('/orders', {
         method: 'POST',
@@ -68,6 +67,8 @@ export function Cart() {
       haptic.success();
       prime(`/orders/${order.id}`, order);
       clearCart();
+      // A delivery: the bot asks for the location in the chat, so close the app to land there.
+      if (inTelegram && canMessage && !pickupBranch(order.fulfillment!)) return tg.close();
       navigate(`/orders/${order.id}`, { replace: true });
     } catch (e) {
       haptic.error();
@@ -79,9 +80,7 @@ export function Cart() {
 
   if (!products.data) return <Status error={products.error} />;
 
-  const chosen = isOffered(form.fulfillment) ? form.fulfillment : null;
-  const option = chosen && FULFILLMENTS[chosen];
-  const branch = chosen && pickupBranch(chosen);
+  const branch = isOffered(form.fulfillment) && pickupBranch(form.fulfillment);
 
   return (
     <div class="page">
@@ -141,13 +140,7 @@ export function Cart() {
         ))}
       </section>
 
-      {branch ? (
-        <LocationPreview value={branch.location} />
-      ) : (
-        option && (
-          <LocationPicker value={form.location} center={option.center} onChange={(p) => update('location', p)} invalid={invalid.location} />
-        )
-      )}
+      {branch && <LocationPreview value={branch.location} />}
 
       <MainButton text={`Buyurtma berish · ${money(total)}`} onClick={submit} loading={sending} />
     </div>

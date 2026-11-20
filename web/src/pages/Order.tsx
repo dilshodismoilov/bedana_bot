@@ -109,6 +109,13 @@ export function OrderPage({ id }: { id: number }) {
                 </div>
               </div>
             )}
+            {/* The customer sends the delivery location in the bot chat after ordering. */}
+            {option && !branch && !o.location && (
+              <div class="row">
+                <span class="choice-icon">📍</span>
+                <div class="row-main muted">Manzil kutilmoqda</div>
+              </div>
+            )}
           </section>
 
           {branch ? <LocationPreview value={branch.location} /> : o.location && <LocationPreview value={o.location} />}

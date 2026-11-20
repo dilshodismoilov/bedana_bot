@@ -1,13 +1,15 @@
-// Incoming bot commands, received by long polling (works the same locally and on the VPS; no webhook to set up).
+// Incoming bot commands and delivery locations, received by long polling (works the same locally and on the VPS; no webhook to set up).
 // Only one process may poll a bot at a time: running local dev and the VPS with the same token makes them fight.
 import { env } from './env.ts';
-import { botApi, TelegramError } from './telegram.ts';
+import { setDeliveryLocation } from './store.ts';
+import { announceLocation, botApi, locationReply, TelegramError } from './telegram.ts';
 
 type Message = {
   message_id: number;
   text?: string;
+  location?: { latitude: number; longitude: number }; // also set on venues and live locations
   chat: { id: number; type: string; title?: string };
-  from?: { first_name?: string };
+  from?: { id: number; first_name?: string };
 };
 type Update = { update_id: number; message?: Message };
 
@@ -35,7 +37,25 @@ export function startReply(firstName: string | undefined) {
   };
 }
 
+/**
+ * A location sent in the private chat is where to deliver the customer's latest open delivery order
+ * (the bot asks for it after the order, see locationRequest). ~10 cm precision is plenty.
+ */
+async function receiveLocation(message: Message) {
+  const { latitude, longitude } = message.location!;
+  const order = setDeliveryLocation(message.from!.id, { lat: +latitude.toFixed(6), lng: +longitude.toFixed(6) });
+  await botApi('sendMessage', { chat_id: message.chat.id, ...locationReply(order) });
+  if (order) {
+    console.log(`[bot] order #${order.id} got its delivery location`);
+    await announceLocation(order);
+  }
+}
+
 async function handle(message: Message, botUsername: string) {
+  if (message.chat.type === 'private' && message.location && message.from) {
+    await receiveLocation(message);
+    return;
+  }
   if (message.chat.type === 'private' && isCommand(message.text, 'start', botUsername)) {
     await botApi('sendMessage', { chat_id: message.chat.id, ...startReply(message.from?.first_name) });
     return;

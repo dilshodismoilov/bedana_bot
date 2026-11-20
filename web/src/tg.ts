@@ -47,56 +47,22 @@ export function repaintMainButton() {
 let askedWriteAccess = false;
 
 /**
- * Lets the bot message the user in a private chat (the order confirmation). Telegram shows its own
- * "allow messages" prompt once, and only if the user hasn't allowed it or started the bot already.
- * Resolves either way: the order goes through whatever the answer is.
+ * Lets the bot message the user in a private chat (the order confirmation and the location request). Telegram
+ * shows its own "allow messages" prompt once, and only if the user hasn't allowed it or started the bot already.
+ * Resolves to false only if the user declined just now; the order goes through whatever the answer is.
  */
-export function allowBotMessages(): Promise<void> {
+export function allowBotMessages(): Promise<boolean> {
   if (!inTelegram || askedWriteAccess || tg.initDataUnsafe.user?.allows_write_to_pm || !tg.isVersionAtLeast('6.9')) {
-    return Promise.resolve();
+    return Promise.resolve(true);
   }
   askedWriteAccess = true;
-  return new Promise((resolve) => tg.requestWriteAccess(() => resolve()));
+  return new Promise((resolve) => tg.requestWriteAccess((allowed) => resolve(allowed)));
 }
 
 /** Order id from a group-message deep link (`?startapp=order_42`), if the app was opened by one. */
 export function startOrderId(): number | null {
   const m = /^order_(\d+)$/.exec(tg.initDataUnsafe.start_param ?? '');
   return m ? Number(m[1]) : null;
-}
-
-/**
- * The device's current position, or null if unavailable/denied.
- * Uses Telegram's LocationManager (Bot API 8.0+) so the permission prompt is Telegram's own;
- * falls back to the browser API on older clients and in local dev.
- * `userAction`: the user tapped a button, so if they denied access earlier, open the settings to re-allow it.
- */
-export function currentLocation({ userAction = false } = {}): Promise<LatLng | null> {
-  if (!inTelegram || !tg.isVersionAtLeast('8.0')) return browserLocation();
-  const lm = tg.LocationManager;
-  return new Promise((resolve) => {
-    const ask = () => {
-      if (!lm.isLocationAvailable) return resolve(null);
-      if (lm.isAccessRequested && !lm.isAccessGranted) {
-        if (userAction) lm.openSettings();
-        return resolve(null);
-      }
-      lm.getLocation((d) => resolve(d ? { lat: d.latitude, lng: d.longitude } : null));
-    };
-    if (lm.isInited) ask();
-    else lm.init(ask);
-  });
-}
-
-function browserLocation(): Promise<LatLng | null> {
-  if (!navigator.geolocation) return Promise.resolve(null);
-  return new Promise((resolve) =>
-    navigator.geolocation.getCurrentPosition(
-      (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
-      () => resolve(null),
-      { enableHighAccuracy: true, timeout: 10_000 },
-    ),
-  );
 }
 
 /** Opens a point in Yandex Maps. */

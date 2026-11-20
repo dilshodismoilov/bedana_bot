@@ -7,8 +7,9 @@ export const cart = signal<Record<string, number>>(read('cart', {}));
 effect(() => write('cart', cart.value));
 
 // Checkout form, kept across navigation and app restarts.
-// Merged onto defaults so drafts saved by older versions (which had an address field) still load.
-export const draft = signal<Contact>({ name: '', phone: '', fulfillment: null, location: null, ...read<Partial<Contact>>('draft', {}) });
+// Only known fields are taken, so drafts saved by older versions (with an address or a map location) still load.
+const saved = read<Partial<Contact>>('draft', {});
+export const draft = signal<Contact>({ name: saved.name ?? '', phone: saved.phone ?? '', fulfillment: saved.fulfillment ?? null });
 effect(() => write('draft', draft.value));
 
 /** One way to buy a product: in its unit, or by the pack. `key` identifies it in the cart. */

@@ -3,8 +3,8 @@ import { bodyLimit } from 'hono/body-limit';
 import { randomUUID } from 'node:crypto';
 import { unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { isOffered, pickupBranch } from '../shared/delivery.ts';
-import type { LatLng, Me, NewOrder, OrderStatus, Pack } from '../shared/types.ts';
+import { isOffered } from '../shared/delivery.ts';
+import type { Me, NewOrder, OrderStatus, Pack } from '../shared/types.ts';
 import { capitalLabel, isPackUnit, isUnit, MAX_QTY } from '../shared/units.ts';
 import { adminOnly, auth, isAdmin, type AuthEnv } from './auth.ts';
 import { uploadsDir } from './db.ts';
@@ -130,14 +130,6 @@ function quantity(value: unknown): number {
   return value;
 }
 
-function location(value: any): LatLng {
-  const lat = Number(value?.lat);
-  const lng = Number(value?.lng);
-  const ok = value?.lat != null && value?.lng != null && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
-  if (!ok) throw new store.UserError("Yetkazib berish joyini xaritada belgilang");
-  return { lat, lng };
-}
-
 function productFields(body: Record<string, unknown>) {
   // Multipart forms send line breaks as \r\n.
   const description = typeof body.description === 'string' ? body.description.replace(/\r\n?/g, '\n').trim() : '';
@@ -161,8 +153,7 @@ function parseNewOrder(body: any): NewOrder {
   return {
     name: text(body.name, 100, 'Ismingizni kiriting'),
     phone: text(body.phone, 30, 'Telefon raqamingizni kiriting'),
-    fulfillment,
-    location: pickupBranch(fulfillment) ? null : location(body.location), // a pickup needs no customer location
+    fulfillment, // a delivery's location comes later, from the bot chat (bot.ts)
     items: items.map((i: any) => ({
       productId: int(i?.productId, 1, Number.MAX_SAFE_INTEGER, 'Savatda xatolik'),
       qty: quantity(i?.qty), // checked against the product's unit when the order is created

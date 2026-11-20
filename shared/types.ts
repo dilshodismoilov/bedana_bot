@@ -28,7 +28,6 @@ export type Contact = {
   name: string;
   phone: string;
   fulfillment: Fulfillment | null; // pickup branch or delivery area (see delivery.ts); null only on orders from before it existed
-  location: LatLng | null; // delivery point; null for pickup and on orders from before locations existed
 };
 
 export type OrderItem = {
@@ -41,6 +40,8 @@ export type OrderItem = {
 
 export type Order = Contact & {
   id: number;
+  // Delivery point. The customer sends it in the bot chat after ordering, so it is null until then; always null for pickup.
+  location: LatLng | null;
   userId: number; // Telegram user id of the customer
   items: OrderItem[];
   total: number;
@@ -54,7 +55,6 @@ export type OrderStatus = 'paid' | 'completed';
 
 export type NewOrder = Omit<Contact, 'fulfillment'> & {
   fulfillment: Fulfillment;
-  location: LatLng | null; // required unless picked up at a branch
   items: { productId: number; qty: number; pack?: boolean }[]; // pack: qty is a number of packs
 };
 

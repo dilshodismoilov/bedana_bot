@@ -16,7 +16,7 @@ server/
   db.ts              connection + append-only migrations (PRAGMA user_version)
   auth.ts            Telegram initData verification; admin = member of the orders group
   telegram.ts        outgoing Bot API calls: group order message and its edits
-  bot.ts             incoming bot commands via long polling (/start greets with a shop button, /here replies with the chat id)
+  bot.ts             incoming bot messages via long polling (/start greets with a shop button, /here replies with the chat id, a location is a delivery point)
   env.ts             config from env vars
   api.test.ts        end-to-end API tests (temp DB, DEV mode)
   bot.test.ts        command parsing
@@ -24,9 +24,9 @@ web/src/
   app.tsx            all routes
   pages/             one file per screen; each page fetches its own data
   ui.tsx             MainButton, BackButton, QtyInput, Status, Icon
-  tg.ts              Telegram WebApp SDK wrapper (haptics, confirm, deep link, device location)
+  tg.ts              Telegram WebApp SDK wrapper (haptics, confirm, deep link, bot messages permission)
   crop.tsx           product photo frame: drag/pinch to crop, exports the square JPEGs that are uploaded
-  map.tsx            delivery-location map: picker at checkout, preview on orders (Leaflet, lazy-loaded)
+  map.tsx            read-only map of a branch or delivery point (Leaflet, lazy-loaded)
   api.ts             fetch wrapper + useApi (stale-while-revalidate cache)
   cart.ts            cart and checkout draft (signals, persisted to localStorage)
   styles.css         all styles; colors come from Telegram theme variables
@@ -61,8 +61,8 @@ For UI changes, check the affected screens in a mobile-sized browser viewport, i
 - **Deep link:** the group message button opens `APP_LINK?startapp=order_<id>`. `main.tsx` turns that into the `/orders/<id>` route. That order screen shows no back button, so Telegram shows its close button and one tap returns to the group.
 - **Ports:** the server reads `API_PORT`, not `PORT`, because dev tools often inject `PORT` for themselves. Vite is pinned to 5173 with `strictPort`.
 - **Order statuses** are independent timestamps (`paid_at`, `completed_at`); an order is closed when all are set. To add one: a migration column, `OrderStatus` in `shared/types.ts`, `STATUS_COLUMN` in `store.ts`, the route list in `api.ts`, `STATUS_TEXT` in `pages/Order.tsx`, and the status line in `telegram.ts`.
-- **Pickup or delivery:** every new order has a `fulfillment` id from `shared/delivery.ts` (stored as text, so never rename an id; add new ones). Pickup options name a branch and need no customer location (`location` is null); every other option requires the map pin. Branch coordinates, labels and the shop phone are edited there, and the cart, order page and bot messages all read them from there. To take an option off checkout for a while, set `hidden: true` on it: the cart stops listing it and the server rejects it for new orders, while past orders keep showing it.
-- **Delivery location** is a map pin (`location: {lat, lng}`), not an address. Map links open Yandex Maps (`yandexMapUrl()`). Map tiles come from OpenStreetMap's public tile server, which is fine for a small shop; if traffic grows, switch the tile URL in `map.tsx` to a paid provider. The group gets a native Telegram location message as a reply to each order.
-- **Bot commands:** add a handler in `bot.ts` `handle()`. Polling starts from `main.ts` only, so tests never talk to Telegram. One poller per bot token: a second process gets "Conflict" errors.
+- **Pickup or delivery:** every new order has a `fulfillment` id from `shared/delivery.ts` (stored as text, so never rename an id; add new ones). Pickup options name a branch and need no customer location (`location` is null); every other option is delivered. Branch coordinates, labels and the shop phone are edited there, and the cart, order page and bot messages all read them from there. To take an option off checkout for a while, set `hidden: true` on it: the cart stops listing it and the server rejects it for new orders, while past orders keep showing it.
+- **Delivery location** is a point (`location: {lat, lng}`), not an address, and the customer sends it in the bot chat, not in the app. After a delivery order the app closes (`Cart.tsx`), `notifyCustomer()` sends the confirmation and then `locationRequest()` with a share-location keyboard button, and `bot.ts` saves any location sent in the private chat to the customer's latest delivery order that isn't completed (`setDeliveryLocation()`; sending again moves it). Until then the order's `location` is null and the group message says "Manzil kutilmoqda". When it arrives, the group message is edited to add the map link and a native Telegram location message follows as a reply to the order. Map links open Yandex Maps (`yandexMapUrl()`). Map tiles come from OpenStreetMap's public tile server, which is fine for a small shop; if traffic grows, switch the tile URL in `map.tsx` to a paid provider.
+- **Bot commands and messages:** add a handler in `bot.ts` `handle()`. Polling starts from `main.ts` only, so tests never talk to Telegram. One poller per bot token: a second process gets "Conflict" errors.
 - **Telegram limits:** `web_app` inline buttons don't work in groups, which is why the group message uses a `t.me` URL button. A bot can only message a user privately after they started it or allowed it: checkout calls `allowBotMessages()` (`tg.ts`) first, and `notifyCustomer()` treats Telegram's refusal as normal.
 - **Local dev with the real bot token:** run with `BOT_TOKEN=` (empty, overrides `.env`) when the production server is running, or the two pollers conflict.

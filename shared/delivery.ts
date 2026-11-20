@@ -16,8 +16,7 @@ type Option = {
   icon: string;
   title: string;
   note?: string; // shown after the title, dimmed in the app and in brackets in messages
-  branch?: BranchId; // pickup: no customer location needed
-  center?: LatLng; // where the delivery map starts before the customer picks a point
+  branch?: BranchId; // pickup; every other option is delivered, and the bot asks the customer for their location
   hidden?: true; // not offered for new orders yet; past orders with it still show it
 };
 
@@ -25,13 +24,8 @@ type Option = {
 export const FULFILLMENTS: Record<Fulfillment, Option> = {
   pickup_fergana: { icon: '🏠', title: "O'zim olib ketaman — Farg'ona", branch: 'fergana' },
   pickup_tashkent: { icon: '🏠', title: "O'zim olib ketaman — Toshkent", branch: 'tashkent', hidden: true },
-  delivery_valley: {
-    icon: '🚚',
-    title: "Yetkazib berish — Farg'ona vodiysi",
-    note: "Farg'ona/Andijon/Namangan",
-    center: BRANCHES.fergana.location,
-  },
-  delivery_tashkent: { icon: '🚚', title: 'Yetkazib berish — Toshkent shahri/viloyati', center: BRANCHES.tashkent.location },
+  delivery_valley: { icon: '🚚', title: "Yetkazib berish — Farg'ona vodiysi", note: "Farg'ona/Andijon/Namangan" },
+  delivery_tashkent: { icon: '🚚', title: 'Yetkazib berish — Toshkent shahri/viloyati' },
   other: { icon: '❓', title: 'Boshqa hudud / kelishamiz' },
 };
 
@@ -42,11 +36,14 @@ export const OFFERED_FULFILLMENTS = FULFILLMENT_IDS.filter((f) => !FULFILLMENTS[
 
 export const isOffered = (f: unknown): f is Fulfillment => OFFERED_FULFILLMENTS.includes(f as Fulfillment);
 
-/** The branch to pick the order up at, or null when it is delivered (the customer then gives their location). */
+/** The branch to pick the order up at, or null when it is delivered (the customer then sends their location). */
 export const pickupBranch = (f: Fulfillment) => {
   const id = FULFILLMENTS[f].branch;
   return id ? BRANCHES[id] : null;
 };
+
+/** Options delivered to the customer, hidden ones included. */
+export const DELIVERY_FULFILLMENTS = FULFILLMENT_IDS.filter((f) => !FULFILLMENTS[f].branch);
 
 /** One line, e.g. "🚚 Yetkazib berish — Farg'ona vodiysi (Farg'ona/Andijon/Namangan)". */
 export const fulfillmentText = (f: Fulfillment) => {

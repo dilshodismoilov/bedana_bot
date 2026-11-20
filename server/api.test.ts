@@ -14,8 +14,6 @@ process.env.GROUP_ID = '';
 const { app } = await import('./app.ts');
 const { verifyInitData } = await import('./auth.ts');
 
-const HERE = { lat: 41.3, lng: 69.24 };
-
 const call = async (method: string, path: string, body?: unknown) => {
   const init: RequestInit = { method };
   if (body instanceof FormData) init.body = body;
@@ -61,7 +59,6 @@ test('product CRUD, order with server-side pricing, paid toggle', async () => {
     name: 'Ali',
     phone: '+998 90 123 45 67',
     fulfillment: 'delivery_tashkent',
-    location: { lat: 41.311081, lng: 69.240562 },
     items: [{ productId: created.body.id, qty: 30 }],
   });
   assert.equal(order.status, 201);
@@ -69,7 +66,7 @@ test('product CRUD, order with server-side pricing, paid toggle', async () => {
   assert.deepEqual(order.body.items, [{ productId: created.body.id, name: 'Bedana tuxumi', price: 1600, unit: 'piece', qty: 30 }]);
 
   const me = await call('GET', '/me');
-  assert.deepEqual(me.body, { isAdmin: true, ordersCount: 1, contact: { name: 'Ali', phone: '+998 90 123 45 67', fulfillment: 'delivery_tashkent', location: { lat: 41.311081, lng: 69.240562 } } });
+  assert.deepEqual(me.body, { isAdmin: true, ordersCount: 1, contact: { name: 'Ali', phone: '+998 90 123 45 67', fulfillment: 'delivery_tashkent' } });
 
   const paid = await call('PUT', `/orders/${order.body.id}/paid`, { paid: true });
   assert.ok(paid.body.paidAt);
@@ -80,7 +77,7 @@ test('product CRUD, order with server-side pricing, paid toggle', async () => {
   assert.equal(after.body.items[0].productId, null);
   assert.equal(after.body.items[0].name, 'Bedana tuxumi');
 
-  const stale = await call('POST', '/orders', { name: 'A', phone: '1', fulfillment: 'delivery_tashkent', location: HERE, items: [{ productId: created.body.id, qty: 1 }] });
+  const stale = await call('POST', '/orders', { name: 'A', phone: '1', fulfillment: 'delivery_tashkent', items: [{ productId: created.body.id, qty: 1 }] });
   assert.equal(stale.status, 400);
 });
 
@@ -91,7 +88,7 @@ test('products sold by the kilogram take 100 g steps; pieces stay whole', async 
   assert.equal(eggs.body.unit, 'piece');
   assert.equal((await call('POST', '/products', productForm('X', 1, ['new'], '', 'litr'))).status, 400);
 
-  const place = (items: { productId: number; qty: unknown }[]) => call('POST', '/orders', { name: 'A', phone: '1', fulfillment: 'delivery_tashkent', location: HERE, items });
+  const place = (items: { productId: number; qty: unknown }[]) => call('POST', '/orders', { name: 'A', phone: '1', fulfillment: 'delivery_tashkent', items });
   const order = await place([
     { productId: meat.body.id, qty: 1.5 },
     { productId: eggs.body.id, qty: 10 },
@@ -128,7 +125,7 @@ test('packs: own price, whole packs only, only for products sold by the piece', 
   const kg = await call('POST', '/products', productForm('Y', 1, ['new'], '', 'kg', ['10', '5']));
   assert.equal(kg.body.pack, null, 'kg products have no pack');
 
-  const place = (items: object[]) => call('POST', '/orders', { name: 'A', phone: '1', fulfillment: 'delivery_tashkent', location: HERE, items });
+  const place = (items: object[]) => call('POST', '/orders', { name: 'A', phone: '1', fulfillment: 'delivery_tashkent', items });
   const order = await place([
     { productId: quail.body.id, qty: 2, pack: true },
     { productId: quail.body.id, qty: 3 },
@@ -167,7 +164,6 @@ test('a pack can be called korobka: same rules, its own word in orders and messa
     name: 'A',
     phone: '1',
     fulfillment: 'delivery_tashkent',
-    location: HERE,
     items: [{ productId: eggs.body.id, qty: 2, pack: true }],
   });
   assert.equal(order.status, 201);
@@ -213,7 +209,7 @@ test('customers cannot use admin endpoints or see other customers orders', async
   const order = await app.request('/api/orders', {
     method: 'POST',
     headers: asCustomer(7),
-    body: JSON.stringify({ name: 'A', phone: '+998901234567', fulfillment: 'delivery_tashkent', location: HERE, items: [{ productId: product.body.id, qty: 2, price: 1 }] }),
+    body: JSON.stringify({ name: 'A', phone: '+998901234567', fulfillment: 'delivery_tashkent', items: [{ productId: product.body.id, qty: 2, price: 1 }] }),
   });
   const created = (await order.json()) as any;
   assert.equal(created.total, 3600, 'client-sent price is ignored');
@@ -233,7 +229,7 @@ test('customers cannot use admin endpoints or see other customers orders', async
 
 test('marking an order paid twice keeps the first payment time', async () => {
   const product = await call('POST', '/products', productForm('Bedana', 100));
-  const order = await call('POST', '/orders', { name: 'A', phone: '+998901234567', fulfillment: 'delivery_tashkent', location: HERE, items: [{ productId: product.body.id, qty: 1 }] });
+  const order = await call('POST', '/orders', { name: 'A', phone: '+998901234567', fulfillment: 'delivery_tashkent', items: [{ productId: product.body.id, qty: 1 }] });
   const first = await call('PUT', `/orders/${order.body.id}/paid`, { paid: true });
   await new Promise((r) => setTimeout(r, 5));
   const second = await call('PUT', `/orders/${order.body.id}/paid`, { paid: true });
@@ -244,7 +240,7 @@ test('marking an order paid twice keeps the first payment time', async () => {
 test('completed is independent of paid; admin list shows open orders before closed ones', async () => {
   const product = await call('POST', '/products', productForm('Bedana', 100));
   const place = async () =>
-    (await call('POST', '/orders', { name: 'A', phone: '+998901234567', fulfillment: 'delivery_tashkent', location: HERE, items: [{ productId: product.body.id, qty: 1 }] })).body;
+    (await call('POST', '/orders', { name: 'A', phone: '+998901234567', fulfillment: 'delivery_tashkent', items: [{ productId: product.body.id, qty: 1 }] })).body;
   const closed = await place();
   const deliveredUnpaid = await place();
   const fresh = await place();
@@ -267,34 +263,24 @@ test('completed is independent of paid; admin list shows open orders before clos
 });
 
 test('order validation', async () => {
-  const res = await call('POST', '/orders', { name: '', phone: '1', fulfillment: 'delivery_tashkent', location: HERE, items: [{ productId: 1, qty: 1 }] });
+  const res = await call('POST', '/orders', { name: '', phone: '1', fulfillment: 'delivery_tashkent', items: [{ productId: 1, qty: 1 }] });
   assert.equal(res.status, 400);
   assert.equal(res.body.error, 'Ismingizni kiriting');
 
-  const order = (location: unknown) =>
-    call('POST', '/orders', { name: 'A', phone: '+998901234567', fulfillment: 'delivery_valley', location, items: [{ productId: 1, qty: 1 }] });
-  for (const bad of [undefined, null, {}, { lat: 41 }, { lat: 91, lng: 69 }, { lat: 41, lng: 181 }, { lat: 'x', lng: 69 }]) {
-    const r = await order(bad);
-    assert.equal(r.status, 400, JSON.stringify(bad));
-    assert.equal(r.body.error, 'Yetkazib berish joyini xaritada belgilang');
-  }
-
   for (const fulfillment of [undefined, '', 'pickup', 'delivery', 'pickup_tashkent' /* hidden: not offered yet */]) {
-    const r = await call('POST', '/orders', { name: 'A', phone: '+998901234567', fulfillment, location: HERE, items: [{ productId: 1, qty: 1 }] });
+    const r = await call('POST', '/orders', { name: 'A', phone: '+998901234567', fulfillment, items: [{ productId: 1, qty: 1 }] });
     assert.equal(r.body.error, 'Olib ketish yoki yetkazib berishni tanlang', String(fulfillment));
   }
 });
 
-test('pickup orders need no location; the customer message says where to collect or where it goes', async () => {
+test('the customer message says where to collect a pickup; a delivery waits for the location', async () => {
   const { customerMessage, orderMessage } = await import('./telegram.ts');
   const product = await call('POST', '/products', productForm("Bedana go'shti", 0, ['new'], '', 'piece', ['10', '70000']));
 
-  // A location sent with a pickup order (e.g. left in the draft from an earlier delivery) is dropped.
   const pickup = await call('POST', '/orders', {
     name: 'A',
     phone: '+998901234567',
     fulfillment: 'pickup_fergana',
-    location: HERE,
     items: [{ productId: product.body.id, qty: 1, pack: true }],
   });
   assert.equal(pickup.status, 201);
@@ -326,21 +312,57 @@ test('pickup orders need no location; the customer message says where to collect
     name: 'A',
     phone: '+998901234567',
     fulfillment: 'delivery_valley',
-    location: { lat: 40.38, lng: 71.78 },
+    location: { lat: 40.38, lng: 71.78 }, // sent by an older app version: ignored, the location comes from the bot chat
     items: [
       { productId: product.body.id, qty: 2, pack: true },
       { productId: product.body.id, qty: 1, pack: true },
     ],
   });
+  assert.equal(delivery.body.location, null);
   const text = customerMessage(delivery.body).text;
   for (const part of [
     "Mahsulotlar:\n• Bedana go'shti (2 pachka)\n• Bedana go'shti (1 pachka)\nJami summa: 210 000 so'm",
-    "🚚 Yetkazib berish — Farg'ona vodiysi (Farg'ona/Andijon/Namangan)\n📍 Shu manzilga yetkazib beriladi: <a href=\"https://yandex.uz/maps/?pt=71.78,40.38&amp;",
-    "🚚 Operatorimiz tez orada (5-10 daqiqa ichida) siz bilan bog'lanib, yetkazib berish vaqtini va to'lov usulini tasdiqlaydi.",
+    "🚚 Yetkazib berish — Farg'ona vodiysi (Farg'ona/Andijon/Namangan)\n\n🚚 Operatorimiz tez orada (5-10 daqiqa ichida) siz bilan bog'lanib, yetkazib berish vaqtini va to'lov usulini tasdiqlaydi.",
   ]) {
     assert.ok(text.includes(part), part);
   }
-  assert.ok(orderMessage(delivery.body).text.includes("Namangan)\n📍 <a href=\"https://yandex.uz/maps/?pt=71.78,40.38&amp;"));
+  assert.ok(orderMessage(delivery.body).text.includes('Namangan)\n📍 Manzil kutilmoqda\n'), 'the group sees the location is still to come');
+});
+
+test('a location sent in the bot chat goes to the latest open delivery order', async () => {
+  const { setDeliveryLocation } = await import('./store.ts');
+  const { locationReply, locationRequest, orderMessage } = await import('./telegram.ts');
+  const product = await call('POST', '/products', productForm('Tuxum', 1000));
+  const place = async (fulfillment: string, user = '701') => {
+    const res = await app.request('/api/orders', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-dev-user': user },
+      body: JSON.stringify({ name: 'A', phone: '+998901234567', fulfillment, items: [{ productId: product.body.id, qty: 1 }] }),
+    });
+    return (await res.json()) as any;
+  };
+
+  assert.equal(setDeliveryLocation(701, { lat: 1, lng: 2 }), null, 'no orders yet');
+  assert.equal(locationReply(null).text, "Yetkazib berishni kutayotgan buyurtmangiz yo'q.");
+
+  const older = await place('delivery_tashkent');
+  const done = await place('other');
+  await call('PUT', `/orders/${done.id}/completed`, { completed: true }); // admin (DEV user)
+  await place('pickup_fergana');
+  await place('delivery_valley', '702'); // another customer
+
+  const order = setDeliveryLocation(701, { lat: 41.3, lng: 69.24 })!;
+  assert.equal(order.id, older.id, 'skips pickups, completed orders and other customers');
+  assert.deepEqual(order.location, { lat: 41.3, lng: 69.24 });
+  assert.deepEqual((await call('GET', `/orders/${older.id}`)).body.location, { lat: 41.3, lng: 69.24 });
+  assert.ok(orderMessage(order).text.includes('📍 <a href="https://yandex.uz/maps/?pt=69.24,41.3&amp;z=17&amp;l=map">Yandex xarita</a>'));
+
+  const reply = locationReply(order);
+  assert.equal(reply.text, `📍 Buyurtma #${order.id} shu manzilga yetkazib beriladi: <a href="https://yandex.uz/maps/?pt=69.24,41.3&amp;z=17&amp;l=map">Xaritada ko'rish</a>`);
+  assert.deepEqual(reply.reply_markup, { remove_keyboard: true });
+  assert.equal(locationRequest().reply_markup.keyboard[0][0].request_location, true);
+
+  assert.deepEqual(setDeliveryLocation(701, { lat: 41.31, lng: 69.25 })!.location, { lat: 41.31, lng: 69.25 }, 'sending again moves it');
 });
 
 test('verifyInitData accepts genuine data and rejects tampering/expiry', () => {
