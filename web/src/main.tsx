@@ -1,6 +1,6 @@
 import { render } from 'preact';
 import { App } from './app.tsx';
-import { inTelegram, startOrderId, tg } from './tg.ts';
+import { inTelegram, startedForCart, startOrderId, tg } from './tg.ts';
 import './styles.css';
 
 if (inTelegram) {
@@ -14,5 +14,7 @@ if (inTelegram) {
 // Opened from an order message in the group: start on that order.
 const orderId = startOrderId();
 if (orderId) history.replaceState(null, '', `/orders/${orderId}`);
+// Back from the bot chat after sending the delivery location: continue checkout.
+else if (startedForCart()) history.replaceState(null, '', '/cart');
 
 render(<App />, document.getElementById('app')!);

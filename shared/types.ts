@@ -40,8 +40,7 @@ export type OrderItem = {
 
 export type Order = Contact & {
   id: number;
-  // Delivery point. The customer sends it in the bot chat after ordering, so it is null until then; always null for pickup.
-  location: LatLng | null;
+  location: LatLng | null; // delivery point (sent in the bot chat before ordering); null for pickup and very old orders
   userId: number; // Telegram user id of the customer
   items: OrderItem[];
   total: number;
@@ -62,4 +61,5 @@ export type Me = {
   isAdmin: boolean;
   ordersCount: number;
   contact: Contact | null; // from the user's latest order, used to prefill checkout
+  location: LatLng | null; // the last location the user sent in the bot chat; a delivery order goes there
 };

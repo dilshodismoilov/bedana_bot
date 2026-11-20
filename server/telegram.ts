@@ -3,7 +3,7 @@ import { fulfillmentText, pickupBranch, SHOP_PHONE, yandexMapUrl } from '../shar
 import type { LatLng, Order } from '../shared/types.ts';
 import { lineTotal, qtyText } from '../shared/units.ts';
 import { env } from './env.ts';
-import { getOrderMessageId, setOrderMessageId } from './store.ts';
+import { getOrderMessageId, setOrderMessageId, UserError } from './store.ts';
 
 /** Telegram rejected the call (as opposed to a network failure). */
 export class TelegramError extends Error {}
@@ -26,24 +26,38 @@ export async function announceOrder(order: Order): Promise<void> {
   if (!enabled()) return console.log(`[telegram] disabled, skipped announcing order #${order.id}`);
   const msg = await botApi<{ message_id: number }>('sendMessage', { chat_id: env.groupId, ...orderMessage(order) });
   setOrderMessageId(order.id, msg.message_id);
+  // Delivery: a native location message, as a reply to the order, so the map shows right in the group.
+  if (order.location) {
+    await botApi('sendLocation', {
+      chat_id: env.groupId,
+      latitude: order.location.lat,
+      longitude: order.location.lng,
+      reply_parameters: { message_id: msg.message_id },
+    });
+  }
   console.log(`[telegram] order #${order.id} posted to the group`);
 }
 
 /**
- * The customer sent the delivery location: the group message gets the map link, followed by a native location
- * message as a reply to the order, so the map shows right in the group.
+ * Asks the user, in their private chat with the bot, to send the delivery location (bot.ts saves it).
+ * Returns the link to that chat for the app to open, or null when the bot is off (local dev).
  */
-export async function announceLocation(order: Order): Promise<void> {
-  if (!enabled() || !order.location) return;
-  await refreshOrderMessage(order);
-  const messageId = getOrderMessageId(order.id);
-  await botApi('sendLocation', {
-    chat_id: env.groupId,
-    latitude: order.location.lat,
-    longitude: order.location.lng,
-    ...(messageId && { reply_parameters: { message_id: messageId, allow_sending_without_reply: true } }),
-  });
+export async function requestLocation(userId: number): Promise<string | null> {
+  if (!env.botToken) {
+    console.log(`[telegram] disabled, skipped asking user ${userId} for a location`);
+    return null;
+  }
+  try {
+    await botApi('sendMessage', { chat_id: userId, ...locationRequest() });
+  } catch (e) {
+    if (e instanceof TelegramError) throw new UserError("Bot sizga yoza olmadi. Botni ishga tushiring va qayta urinib ko'ring.");
+    throw e;
+  }
+  return botChatLink();
 }
+
+/** https://t.me/<bot> from APP_LINK, which may also name a Mini App (https://t.me/<bot>/<app>). */
+export const botChatLink = () => (env.appLink ? `https://t.me/${new URL(env.appLink).pathname.split('/')[1]}` : null);
 
 /**
  * Sends the customer an order confirmation in their private chat with the bot. Telegram only allows this if they
@@ -53,7 +67,6 @@ export async function notifyCustomer(order: Order): Promise<void> {
   if (!env.botToken) return;
   try {
     await botApi('sendMessage', { chat_id: order.userId, ...customerMessage(order) });
-    if (awaitsLocation(order)) await botApi('sendMessage', { chat_id: order.userId, ...locationRequest() });
     console.log(`[telegram] order #${order.id} confirmation sent to the customer`);
   } catch (e) {
     if (!(e instanceof TelegramError)) throw e;
@@ -82,7 +95,7 @@ export function orderMessage(order: Order) {
     ...itemLines(order),
     '',
     ...(order.fulfillment ? [fulfillmentText(order.fulfillment)] : []),
-    ...(order.location ? [`📍 ${mapLink(order.location, 'Yandex xarita')}`] : awaitsLocation(order) ? ['📍 Manzil kutilmoqda'] : []),
+    ...(order.location ? [`📍 ${mapLink(order.location, 'Yandex xarita')}`] : []),
     `<a href="tg://user?id=${order.userId}">${esc(order.name)}</a>`,
     esc(order.phone),
   ];
@@ -116,29 +129,25 @@ export function customerMessage(order: Order) {
   return htmlWithOpenButton(lines, order.id);
 }
 
-/** A delivery whose customer hasn't sent the location yet. Orders from before fulfillment existed don't count. */
-const awaitsLocation = (o: Order) => !!o.fulfillment && !pickupBranch(o.fulfillment) && !o.location;
-
 /**
- * Sent after the confirmation of a delivery order. Messages with a keyboard button can't also have the inline
- * Ochish button, hence a second message. The button shares the current position; 📎 → Location picks another point.
+ * Sent when the user taps the send-location button at checkout. The keyboard button shares the current position
+ * and hides once used; 📎 → Location picks another point.
  */
 export function locationRequest() {
   return {
     text: "📍 Yetkazib berish manzilini yuboring.\nBoshqa joyga kerak bo'lsa: 📎 → Joylashuv.",
-    reply_markup: { keyboard: [[{ text: '📍 Joylashuvni yuborish', request_location: true }]], resize_keyboard: true, is_persistent: true },
+    reply_markup: { keyboard: [[{ text: '📍 Joylashuvni yuborish', request_location: true }]], resize_keyboard: true, one_time_keyboard: true },
   };
 }
 
-/** Reply to a location sent in the bot chat: which order it was saved to, or that there is none. Removes the button. */
-export function locationReply(order: Order | null) {
+/** Reply to a location sent in the bot chat: it is saved, with a button back to the cart to place the order. */
+export function locationReply(point: LatLng) {
   return {
-    text: order
-      ? `📍 Buyurtma #${order.id} shu manzilga yetkazib beriladi: ${mapLink(order.location!, "Xaritada ko'rish")}`
-      : "Yetkazib berishni kutayotgan buyurtmangiz yo'q.",
+    text: `📍 Manzil saqlandi: ${mapLink(point, "Xaritada ko'rish")}`,
     parse_mode: 'HTML',
     link_preview_options: { is_disabled: true },
-    reply_markup: { remove_keyboard: true },
+    // The app reads start_param "cart" and opens the cart (main.tsx).
+    reply_markup: env.appLink ? { inline_keyboard: [[{ text: '🛒 Buyurtmani davom ettirish', url: `${env.appLink}?startapp=cart` }]] } : undefined,
   };
 }
 

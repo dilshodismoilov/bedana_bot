@@ -16,7 +16,7 @@ type Option = {
   icon: string;
   title: string;
   note?: string; // shown after the title, dimmed in the app and in brackets in messages
-  branch?: BranchId; // pickup; every other option is delivered, and the bot asks the customer for their location
+  branch?: BranchId; // pickup; every other option is delivered to the location the customer sends in the bot chat
   hidden?: true; // not offered for new orders yet; past orders with it still show it
 };
 
@@ -36,14 +36,11 @@ export const OFFERED_FULFILLMENTS = FULFILLMENT_IDS.filter((f) => !FULFILLMENTS[
 
 export const isOffered = (f: unknown): f is Fulfillment => OFFERED_FULFILLMENTS.includes(f as Fulfillment);
 
-/** The branch to pick the order up at, or null when it is delivered (the customer then sends their location). */
+/** The branch to pick the order up at, or null when it is delivered (to the location sent in the bot chat). */
 export const pickupBranch = (f: Fulfillment) => {
   const id = FULFILLMENTS[f].branch;
   return id ? BRANCHES[id] : null;
 };
-
-/** Options delivered to the customer, hidden ones included. */
-export const DELIVERY_FULFILLMENTS = FULFILLMENT_IDS.filter((f) => !FULFILLMENTS[f].branch);
 
 /** One line, e.g. "🚚 Yetkazib berish — Farg'ona vodiysi (Farg'ona/Andijon/Namangan)". */
 export const fulfillmentText = (f: Fulfillment) => {

@@ -59,6 +59,9 @@ export function allowBotMessages(): Promise<boolean> {
   return new Promise((resolve) => tg.requestWriteAccess((allowed) => resolve(allowed)));
 }
 
+/** Opened by the bot's button after the user sent their location (`?startapp=cart`): back to checkout. */
+export const startedForCart = () => tg.initDataUnsafe.start_param === 'cart';
+
 /** Order id from a group-message deep link (`?startapp=order_42`), if the app was opened by one. */
 export function startOrderId(): number | null {
   const m = /^order_(\d+)$/.exec(tg.initDataUnsafe.start_param ?? '');

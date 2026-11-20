@@ -13,6 +13,11 @@ process.env.GROUP_ID = '';
 
 const { app } = await import('./app.ts');
 const { verifyInitData } = await import('./auth.ts');
+const { setUserLocation } = await import('./store.ts');
+
+// A delivery order goes to the location the customer sent in the bot chat (bot.ts). These customers have sent one.
+const HERE = { lat: 41.3, lng: 69.24 };
+for (const id of [1, 7]) setUserLocation(id, HERE);
 
 const call = async (method: string, path: string, body?: unknown) => {
   const init: RequestInit = { method };
@@ -66,7 +71,8 @@ test('product CRUD, order with server-side pricing, paid toggle', async () => {
   assert.deepEqual(order.body.items, [{ productId: created.body.id, name: 'Bedana tuxumi', price: 1600, unit: 'piece', qty: 30 }]);
 
   const me = await call('GET', '/me');
-  assert.deepEqual(me.body, { isAdmin: true, ordersCount: 1, contact: { name: 'Ali', phone: '+998 90 123 45 67', fulfillment: 'delivery_tashkent' } });
+  assert.deepEqual(me.body, { isAdmin: true, ordersCount: 1, contact: { name: 'Ali', phone: '+998 90 123 45 67', fulfillment: 'delivery_tashkent' }, location: HERE });
+  assert.deepEqual(order.body.location, HERE);
 
   const paid = await call('PUT', `/orders/${order.body.id}/paid`, { paid: true });
   assert.ok(paid.body.paidAt);
@@ -273,7 +279,7 @@ test('order validation', async () => {
   }
 });
 
-test('the customer message says where to collect a pickup; a delivery waits for the location', async () => {
+test('the customer message says where to collect a pickup or where it is delivered', async () => {
   const { customerMessage, orderMessage } = await import('./telegram.ts');
   const product = await call('POST', '/products', productForm("Bedana go'shti", 0, ['new'], '', 'piece', ['10', '70000']));
 
@@ -312,57 +318,54 @@ test('the customer message says where to collect a pickup; a delivery waits for 
     name: 'A',
     phone: '+998901234567',
     fulfillment: 'delivery_valley',
-    location: { lat: 40.38, lng: 71.78 }, // sent by an older app version: ignored, the location comes from the bot chat
+    location: { lat: 40.38, lng: 71.78 }, // sent by an older app version: ignored, the bot chat one is used
     items: [
       { productId: product.body.id, qty: 2, pack: true },
       { productId: product.body.id, qty: 1, pack: true },
     ],
   });
-  assert.equal(delivery.body.location, null);
+  assert.deepEqual(delivery.body.location, HERE);
   const text = customerMessage(delivery.body).text;
   for (const part of [
     "Mahsulotlar:\n• Bedana go'shti (2 pachka)\n• Bedana go'shti (1 pachka)\nJami summa: 210 000 so'm",
-    "🚚 Yetkazib berish — Farg'ona vodiysi (Farg'ona/Andijon/Namangan)\n\n🚚 Operatorimiz tez orada (5-10 daqiqa ichida) siz bilan bog'lanib, yetkazib berish vaqtini va to'lov usulini tasdiqlaydi.",
+    "🚚 Yetkazib berish — Farg'ona vodiysi (Farg'ona/Andijon/Namangan)\n📍 Shu manzilga yetkazib beriladi: <a href=\"https://yandex.uz/maps/?pt=69.24,41.3&amp;",
+    "🚚 Operatorimiz tez orada (5-10 daqiqa ichida) siz bilan bog'lanib, yetkazib berish vaqtini va to'lov usulini tasdiqlaydi.",
   ]) {
     assert.ok(text.includes(part), part);
   }
-  assert.ok(orderMessage(delivery.body).text.includes('Namangan)\n📍 Manzil kutilmoqda\n'), 'the group sees the location is still to come');
+  assert.ok(orderMessage(delivery.body).text.includes("Namangan)\n📍 <a href=\"https://yandex.uz/maps/?pt=69.24,41.3&amp;"));
 });
 
-test('a location sent in the bot chat goes to the latest open delivery order', async () => {
-  const { setDeliveryLocation } = await import('./store.ts');
-  const { locationReply, locationRequest, orderMessage } = await import('./telegram.ts');
+test('a delivery order needs a location sent in the bot chat first; it goes to the latest one', async () => {
+  const { locationReply, locationRequest } = await import('./telegram.ts');
   const product = await call('POST', '/products', productForm('Tuxum', 1000));
-  const place = async (fulfillment: string, user = '701') => {
-    const res = await app.request('/api/orders', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-dev-user': user },
-      body: JSON.stringify({ name: 'A', phone: '+998901234567', fulfillment, items: [{ productId: product.body.id, qty: 1 }] }),
-    });
-    return (await res.json()) as any;
+  const as701 = async (method: string, path: string, body?: object) => {
+    const r = await app.request(`/api${path}`, { method, headers: { 'content-type': 'application/json', 'x-dev-user': '701' }, body: body && JSON.stringify(body) });
+    return { status: r.status, body: (await r.json()) as any };
   };
+  const place = (fulfillment: string) =>
+    as701('POST', '/orders', { name: 'A', phone: '+998901234567', fulfillment, items: [{ productId: product.body.id, qty: 1 }] });
 
-  assert.equal(setDeliveryLocation(701, { lat: 1, lng: 2 }), null, 'no orders yet');
-  assert.equal(locationReply(null).text, "Yetkazib berishni kutayotgan buyurtmangiz yo'q.");
+  assert.equal((await as701('GET', '/me')).body.location, null);
+  for (const f of ['delivery_tashkent', 'delivery_valley', 'other']) {
+    const r = await place(f);
+    assert.equal(r.status, 400, f);
+    assert.equal(r.body.error, 'Joylashuvni yuboring');
+  }
+  assert.equal((await place('pickup_fergana')).status, 201, 'a pickup needs none');
+  assert.deepEqual((await as701('POST', '/location/request')).body, { chat: null }, 'the bot is off in tests');
 
-  const older = await place('delivery_tashkent');
-  const done = await place('other');
-  await call('PUT', `/orders/${done.id}/completed`, { completed: true }); // admin (DEV user)
-  await place('pickup_fergana');
-  await place('delivery_valley', '702'); // another customer
+  setUserLocation(701, { lat: 41.31, lng: 69.25 }); // what bot.ts does with a location sent in the chat
+  assert.deepEqual((await as701('GET', '/me')).body.location, { lat: 41.31, lng: 69.25 });
+  const first = await place('other');
+  assert.deepEqual(first.body.location, { lat: 41.31, lng: 69.25 });
 
-  const order = setDeliveryLocation(701, { lat: 41.3, lng: 69.24 })!;
-  assert.equal(order.id, older.id, 'skips pickups, completed orders and other customers');
-  assert.deepEqual(order.location, { lat: 41.3, lng: 69.24 });
-  assert.deepEqual((await call('GET', `/orders/${older.id}`)).body.location, { lat: 41.3, lng: 69.24 });
-  assert.ok(orderMessage(order).text.includes('📍 <a href="https://yandex.uz/maps/?pt=69.24,41.3&amp;z=17&amp;l=map">Yandex xarita</a>'));
+  setUserLocation(701, { lat: 40.5, lng: 71.7 }); // sending again replaces it
+  assert.deepEqual((await place('delivery_valley')).body.location, { lat: 40.5, lng: 71.7 });
+  assert.deepEqual((await call('GET', `/orders/${first.body.id}`)).body.location, { lat: 41.31, lng: 69.25 }, 'placed orders keep theirs');
 
-  const reply = locationReply(order);
-  assert.equal(reply.text, `📍 Buyurtma #${order.id} shu manzilga yetkazib beriladi: <a href="https://yandex.uz/maps/?pt=69.24,41.3&amp;z=17&amp;l=map">Xaritada ko'rish</a>`);
-  assert.deepEqual(reply.reply_markup, { remove_keyboard: true });
+  assert.equal(locationReply({ lat: 40.5, lng: 71.7 }).text, `📍 Manzil saqlandi: <a href="https://yandex.uz/maps/?pt=71.7,40.5&amp;z=17&amp;l=map">Xaritada ko'rish</a>`);
   assert.equal(locationRequest().reply_markup.keyboard[0][0].request_location, true);
-
-  assert.deepEqual(setDeliveryLocation(701, { lat: 41.31, lng: 69.25 })!.location, { lat: 41.31, lng: 69.25 }, 'sending again moves it');
 });
 
 test('verifyInitData accepts genuine data and rejects tampering/expiry', () => {

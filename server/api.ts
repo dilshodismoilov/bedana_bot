@@ -9,7 +9,7 @@ import { capitalLabel, isPackUnit, isUnit, MAX_QTY } from '../shared/units.ts';
 import { adminOnly, auth, isAdmin, type AuthEnv } from './auth.ts';
 import { uploadsDir } from './db.ts';
 import * as store from './store.ts';
-import { announceOrder, notifyCustomer, refreshOrderMessage } from './telegram.ts';
+import { announceOrder, notifyCustomer, refreshOrderMessage, requestLocation } from './telegram.ts';
 
 export const api = new Hono<AuthEnv>();
 
@@ -23,9 +23,12 @@ api.use('*', auth);
 
 api.get('/me', async (c) => {
   const { id } = c.get('user');
-  const me: Me = { isAdmin: await isAdmin(id), ...store.userStats(id) };
+  const me: Me = { isAdmin: await isAdmin(id), ...store.userStats(id), location: store.getUserLocation(id) };
   return c.json(me);
 });
+
+// The bot asks the user in their private chat to send a location; the app then takes them there (bot.ts saves it).
+api.post('/location/request', async (c) => c.json({ chat: await requestLocation(c.get('user').id) }));
 
 // ---------- products ----------
 
@@ -153,7 +156,7 @@ function parseNewOrder(body: any): NewOrder {
   return {
     name: text(body.name, 100, 'Ismingizni kiriting'),
     phone: text(body.phone, 30, 'Telefon raqamingizni kiriting'),
-    fulfillment, // a delivery's location comes later, from the bot chat (bot.ts)
+    fulfillment, // a delivery goes to the location the user sent in the bot chat (store.createOrder)
     items: items.map((i: any) => ({
       productId: int(i?.productId, 1, Number.MAX_SAFE_INTEGER, 'Savatda xatolik'),
       qty: quantity(i?.qty), // checked against the product's unit when the order is created

@@ -70,6 +70,13 @@ const migrations = [
   `ALTER TABLE orders ADD COLUMN fulfillment TEXT;`,
   // What the pack is called (a PackUnit: 'pack' = pachka, 'box' = korobka). Order items of a box use unit 'box'.
   `ALTER TABLE products ADD COLUMN pack_unit TEXT NOT NULL DEFAULT 'pack';`,
+  // The last location each customer sent in the bot chat. A delivery order takes it when placed.
+  `CREATE TABLE user_locations (
+    user_id    INTEGER PRIMARY KEY,
+    lat        REAL    NOT NULL,
+    lng        REAL    NOT NULL,
+    updated_at TEXT    NOT NULL
+  );`,
 ];
 
 const { user_version } = db.prepare('PRAGMA user_version').get() as { user_version: number };

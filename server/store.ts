@@ -1,7 +1,7 @@
 // All SQL lives here. Functions return shared types, never raw rows.
 import type { Contact, LatLng, NewOrder, Order, OrderItem, OrderStatus, Pack, Product, Unit } from '../shared/types.ts';
 import { lineTotal, normalizeQty, UNIT_LABEL } from '../shared/units.ts';
-import { DELIVERY_FULFILLMENTS } from '../shared/delivery.ts';
+import { pickupBranch } from '../shared/delivery.ts';
 import { db, tx } from './db.ts';
 
 type Row = Record<string, any>;
@@ -104,10 +104,12 @@ export function createOrder(userId: number, input: NewOrder): Order {
       return { productId, name: p.name, price: pack ? p.pack!.price : p.price!, unit, qty: n };
     });
     const total = items.reduce((sum, i) => sum + lineTotal(i.price, i.qty), 0);
+    const location = pickupBranch(input.fulfillment) ? null : getUserLocation(userId);
+    if (!pickupBranch(input.fulfillment) && !location) throw new UserError('Joylashuvni yuboring');
 
     const { lastInsertRowid } = db
-      .prepare('INSERT INTO orders (user_id, name, phone, fulfillment, total, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(userId, input.name, input.phone, input.fulfillment, total, new Date().toISOString());
+      .prepare('INSERT INTO orders (user_id, name, phone, fulfillment, lat, lng, total, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(userId, input.name, input.phone, input.fulfillment, location?.lat ?? null, location?.lng ?? null, total, new Date().toISOString());
     const orderId = Number(lastInsertRowid);
 
     const insertItem = db.prepare('INSERT INTO order_items (order_id, product_id, name, price, unit, qty) VALUES (?, ?, ?, ?, ?, ?)');
@@ -155,17 +157,20 @@ export function getOrderMessageId(id: number): number | null {
   return r?.tg_message_id ?? null;
 }
 
-/**
- * Sets the delivery point of the customer's latest delivery order that isn't completed yet (sent in the bot chat).
- * Sending again moves it. Returns the order, or null if the customer has no such order.
- */
-export function setDeliveryLocation(userId: number, { lat, lng }: LatLng): Order | null {
-  const r = db
-    .prepare(`SELECT id FROM orders WHERE user_id = ? AND completed_at IS NULL AND fulfillment IN (${DELIVERY_FULFILLMENTS.map(() => '?').join(', ')}) ORDER BY id DESC LIMIT 1`)
-    .get(userId, ...DELIVERY_FULFILLMENTS) as Row | undefined;
-  if (!r) return null;
-  db.prepare('UPDATE orders SET lat = ?, lng = ? WHERE id = ?').run(lat, lng, r.id);
-  return getOrder(r.id);
+// ---------- customer locations (sent in the bot chat) ----------
+
+export function setUserLocation(userId: number, { lat, lng }: LatLng): void {
+  db.prepare('INSERT INTO user_locations (user_id, lat, lng, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT (user_id) DO UPDATE SET lat = excluded.lat, lng = excluded.lng, updated_at = excluded.updated_at').run(
+    userId,
+    lat,
+    lng,
+    new Date().toISOString(),
+  );
+}
+
+export function getUserLocation(userId: number): LatLng | null {
+  const r = db.prepare('SELECT lat, lng FROM user_locations WHERE user_id = ?').get(userId) as Row | undefined;
+  return r ? toLocation(r) : null;
 }
 
 export function userStats(userId: number): { ordersCount: number; contact: Contact | null } {

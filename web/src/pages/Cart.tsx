@@ -1,21 +1,24 @@
 import { useEffect, useState } from 'preact/hooks';
 import { useLocation } from 'wouter-preact';
 import { FULFILLMENTS, isOffered, OFFERED_FULFILLMENTS, pickupBranch } from '../../../shared/delivery.ts';
-import type { Contact, Me, Order, Product } from '../../../shared/types.ts';
+import type { Contact, LatLng, Me, Order, Product } from '../../../shared/types.ts';
 import { api, prime, useApi } from '../api.ts';
 import { cartLines, clearCart, draft, linesTotal, setQty } from '../cart.ts';
 import { lineTotal } from '../../../shared/units.ts';
 import { money } from '../format.ts';
 import { LocationPreview } from '../map.tsx';
 import { alert, allowBotMessages, haptic, inTelegram, tg } from '../tg.ts';
+
+type Field = keyof Contact | 'location';
 import { BackButton, MainButton, QtyInput, Status, UnitPrice } from '../ui.tsx';
 
-/** Checkout fields that are missing or wrong, in screen order. */
-function invalidFields(c: Contact): (keyof Contact)[] {
-  const bad: (keyof Contact)[] = [];
+/** Checkout fields that are missing or wrong, in screen order. `location`: the one sent in the bot chat. */
+function invalidFields(c: Contact, location: LatLng | null | undefined): Field[] {
+  const bad: Field[] = [];
   if (!c.name.trim()) bad.push('name');
   if (c.phone.replace(/\D/g, '').length < 9) bad.push('phone');
   if (!isOffered(c.fulfillment)) bad.push('fulfillment'); // a hidden option kept from a draft or the last order counts as not chosen
+  else if (!pickupBranch(c.fulfillment) && !location) bad.push('location');
   return bad;
 }
 
@@ -23,8 +26,9 @@ export function Cart() {
   const [, navigate] = useLocation();
   const products = useApi<Product[]>('/products');
   const me = useApi<Me>('/me');
-  const [invalid, setInvalid] = useState<Partial<Record<keyof Contact, boolean>>>({});
+  const [invalid, setInvalid] = useState<Partial<Record<Field, boolean>>>({});
   const [sending, setSending] = useState(false);
+  const [requesting, setRequesting] = useState(false);
 
   const lines = cartLines(products.data ?? []);
   const total = linesTotal(lines);
@@ -37,6 +41,17 @@ export function Cart() {
     draft.value = me.data.contact ?? { name: [u?.first_name, u?.last_name].filter(Boolean).join(' '), phone: '', fulfillment: null };
   }, [me.data]);
 
+  // Back from the bot chat with the app still open: pick up the location just sent.
+  useEffect(() => {
+    const refresh = () => document.visibilityState === 'visible' && me.reload();
+    document.addEventListener('visibilitychange', refresh);
+    tg.onEvent('activated', me.reload);
+    return () => {
+      document.removeEventListener('visibilitychange', refresh);
+      tg.offEvent('activated', me.reload);
+    };
+  }, [me.reload]);
+
   // Emptied the cart from here: nothing left to check out.
   useEffect(() => {
     if (products.data && lines.length === 0 && !sending) navigate('/');
@@ -48,17 +63,36 @@ export function Cart() {
   };
   const set = (key: 'name' | 'phone') => (e: Event) => update(key, (e.currentTarget as HTMLInputElement).value);
 
+  /** The bot asks for the location in the chat, and the app takes the user there. Its reply has a button back here. */
+  async function sendLocation() {
+    haptic.tap();
+    setRequesting(true);
+    await allowBotMessages(); // the request is a bot message
+    try {
+      const { chat } = await api<{ chat: string | null }>('/location/request', { method: 'POST' });
+      setInvalid((s) => ({ ...s, location: false }));
+      if (inTelegram && chat) {
+        tg.openTelegramLink(chat);
+        tg.close(); // newer clients keep the app open after openTelegramLink; the bot's button reopens it on the cart
+      }
+    } catch (e) {
+      haptic.error();
+      alert((e as Error).message);
+    }
+    setRequesting(false);
+  }
+
   async function submit() {
-    const bad = invalidFields(form);
+    const bad = invalidFields(form, me.data?.location);
     if (bad.length) {
       haptic.error();
       setInvalid(Object.fromEntries(bad.map((k) => [k, true])));
-      if (bad[0] === 'fulfillment') document.getElementById(bad[0])?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (bad[0] === 'fulfillment' || bad[0] === 'location') document.getElementById(bad[0])?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       else document.querySelector<HTMLElement>(`[name=${bad[0]}]`)?.focus();
       return;
     }
     setSending(true);
-    const canMessage = await allowBotMessages(); // so the bot can send the order confirmation to the customer's chat
+    await allowBotMessages(); // so the bot can send the order confirmation to the customer's chat
     try {
       const order = await api<Order>('/orders', {
         method: 'POST',
@@ -67,8 +101,6 @@ export function Cart() {
       haptic.success();
       prime(`/orders/${order.id}`, order);
       clearCart();
-      // A delivery: the bot asks for the location in the chat, so close the app to land there.
-      if (inTelegram && canMessage && !pickupBranch(order.fulfillment!)) return tg.close();
       navigate(`/orders/${order.id}`, { replace: true });
     } catch (e) {
       haptic.error();
@@ -80,7 +112,9 @@ export function Cart() {
 
   if (!products.data) return <Status error={products.error} />;
 
-  const branch = isOffered(form.fulfillment) && pickupBranch(form.fulfillment);
+  const chosen = isOffered(form.fulfillment) ? form.fulfillment : null;
+  const branch = chosen && pickupBranch(chosen);
+  const location = me.data?.location;
 
   return (
     <div class="page">
@@ -141,6 +175,19 @@ export function Cart() {
       </section>
 
       {branch && <LocationPreview value={branch.location} />}
+
+      {chosen && !branch && (
+        <>
+          <section class={`card list location-request ${invalid.location ? 'invalid' : ''}`} id="location">
+            <button class="row link" onClick={sendLocation} disabled={requesting}>
+              <span class="choice-icon">📍</span>
+              <div class="row-main">{location ? "Joylashuvni o'zgartirish" : 'Joylashuvni yuborish'}</div>
+              {requesting && <span class="spinner" />}
+            </button>
+          </section>
+          {location && <LocationPreview value={location} />}
+        </>
+      )}
 
       <MainButton text={`Buyurtma berish · ${money(total)}`} onClick={submit} loading={sending} />
     </div>

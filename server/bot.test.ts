@@ -26,3 +26,9 @@ test('hereReply gives a copyable GROUP_ID line and marks the configured group', 
   assert.equal(hereReply(-1009999999999), '<code>GROUP_ID=-1009999999999</code>');
   assert.match(hereReply(-1001234567890), /^<code>GROUP_ID=-1001234567890<\/code>\n✅/);
 });
+
+test('after a location is sent, the reply links back to the cart; the request opens the bot chat', async () => {
+  const { botChatLink, locationReply } = await import('./telegram.ts');
+  assert.equal(locationReply({ lat: 1, lng: 2 }).reply_markup?.inline_keyboard[0][0].url, 'https://t.me/shop_bot?startapp=cart');
+  assert.equal(botChatLink(), 'https://t.me/shop_bot');
+});

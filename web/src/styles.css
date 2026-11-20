@@ -377,7 +377,8 @@ h1 {
 }
 
 /* Outlined instead of red text, so the options stay readable while the choice is missing. */
-.choices.invalid {
+.choices.invalid,
+.location-request.invalid {
   color: inherit;
   outline: 2px solid var(--danger);
 }
@@ -395,6 +396,11 @@ h1 {
 
 .radio:checked {
   border: 7px solid var(--accent);
+}
+
+.location-request .row {
+  width: 100%;
+  text-align: left;
 }
 
 /* ---------- maps ---------- */
