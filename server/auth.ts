@@ -1,23 +1,25 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { createMiddleware } from 'hono/factory';
 import { env } from './env.ts';
-import { log, stack } from './log.ts';
+import { log, stack, who } from './log.ts';
 import { botApi, TelegramError } from './telegram.ts';
 
 export type TgUser = { id: number; first_name: string; last_name?: string; username?: string };
-export type AuthEnv = { Variables: { user: TgUser } };
+// authProblem: why a request was refused (401), for the log; see checkInitData.
+export type AuthEnv = { Variables: { user: TgUser; authProblem?: string } };
 
 const MAX_AGE_SEC = 24 * 60 * 60;
 const DEV_USER: TgUser = { id: 1, first_name: 'Dev' };
 
 /**
- * Verifies Telegram Mini App initData.
+ * Verifies Telegram Mini App initData: the user, or why it can't be trusted (Telegram HTML, for the log).
  * https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
  */
-export function verifyInitData(initData: string, botToken: string, now = Date.now()): TgUser | null {
+export function checkInitData(initData: string, botToken: string, now = Date.now()): { user: TgUser } | { problem: string } {
+  if (!initData) return { problem: 'no Telegram data: opened outside Telegram, e.g. the site in a browser' };
   const params = new URLSearchParams(initData);
   const hash = params.get('hash');
-  if (!hash || !botToken) return null;
+  if (!hash || !botToken) return { problem: 'no signature in the Telegram data' };
   params.delete('hash');
 
   const dataCheckString = [...params.entries()]
@@ -26,17 +28,26 @@ export function verifyInitData(initData: string, botToken: string, now = Date.no
     .join('\n');
   const secret = createHmac('sha256', 'WebAppData').update(botToken).digest();
   const expected = createHmac('sha256', secret).update(dataCheckString).digest('hex');
-  if (expected.length !== hash.length || !timingSafeEqual(Buffer.from(expected), Buffer.from(hash))) return null;
-
-  const authDate = Number(params.get('auth_date'));
-  if (!authDate || now / 1000 - authDate > MAX_AGE_SEC) return null;
-
-  try {
-    const user = JSON.parse(params.get('user') ?? 'null');
-    return typeof user?.id === 'number' ? user : null;
-  } catch {
-    return null;
+  if (expected.length !== hash.length || !timingSafeEqual(Buffer.from(expected), Buffer.from(hash))) {
+    return { problem: 'bad signature: the Telegram data is not from this bot' };
   }
+
+  let user: TgUser | null = null;
+  try {
+    const parsed = JSON.parse(params.get('user') ?? 'null');
+    if (typeof parsed?.id === 'number') user = parsed;
+  } catch {}
+  if (!user) return { problem: 'no user in the Telegram data' };
+
+  // Telegram signs the data when the app opens; an app left open (or minimized) for a day has to be reopened.
+  const age = now / 1000 - Number(params.get('auth_date'));
+  if (!(age <= MAX_AGE_SEC)) return { problem: `${who(user)}: app opened ${Math.round(age / 3600)} h ago, Telegram data expired` };
+  return { user };
+}
+
+export function verifyInitData(initData: string, botToken: string, now = Date.now()): TgUser | null {
+  const r = checkInitData(initData, botToken, now);
+  return 'user' in r ? r.user : null;
 }
 
 /**
@@ -45,8 +56,12 @@ export function verifyInitData(initData: string, botToken: string, now = Date.no
  */
 export const auth = createMiddleware<AuthEnv>(async (c, next) => {
   const initData = c.req.header('authorization')?.replace(/^tma /, '') ?? '';
-  const user = verifyInitData(initData, env.botToken) ?? (env.dev ? devUser(c.req.header('x-dev-user')) : null);
-  if (!user) return c.json({ error: 'Ilovani Telegram orqali qayta oching' }, 401);
+  const checked = checkInitData(initData, env.botToken);
+  const user = 'user' in checked ? checked.user : env.dev ? devUser(c.req.header('x-dev-user')) : null;
+  if (!user) {
+    c.set('authProblem', 'problem' in checked ? checked.problem : undefined);
+    return c.json({ error: 'Ilovani Telegram orqali qayta oching' }, 401);
+  }
   c.set('user', user);
   await next();
 });

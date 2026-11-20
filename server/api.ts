@@ -36,7 +36,11 @@ api.use('*', async (c, next) => {
   const status = c.res.status;
   const summary = `${route(c)} ${status} · ${ms} ms · ${requester(c)}`;
   if (ms > env.slowMs) log.warn(`🐢 Slow: ${summary}`);
-  else if (status === 401 || status === 403) log.warn(`🔒 Refused: ${summary}`);
+  else if (status === 401 && c.req.path === '/api/visit') {
+    // One line per app open (it calls /visit first), with the reason; the other refused calls of that open are debug.
+    const device = esc((c.req.header('user-agent') ?? 'no user agent').slice(0, 160));
+    log.warn(`🔒 App opened but not signed in: ${c.var.authProblem ?? 'unknown reason'}\n<code>${device}</code>`);
+  } else if (status === 403) log.warn(`🔒 Refused: ${summary}`);
   else log.debug(summary);
 });
 

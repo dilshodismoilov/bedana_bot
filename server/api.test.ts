@@ -12,7 +12,7 @@ process.env.BOT_TOKEN = '';
 process.env.GROUP_ID = '';
 
 const { app } = await import('./app.ts');
-const { verifyInitData } = await import('./auth.ts');
+const { checkInitData, verifyInitData } = await import('./auth.ts');
 const { setUserLocation } = await import('./store.ts');
 
 // A delivery order goes to the location the customer sent in the bot chat (bot.ts). These customers have sent one.
@@ -382,4 +382,14 @@ test('verifyInitData accepts genuine data and rejects tampering/expiry', () => {
   assert.equal(verifyInitData(initData.replace('Ali', 'Bob'), token, now), null);
   assert.equal(verifyInitData(initData, 'other:TOKEN', now), null);
   assert.equal(verifyInitData(initData, token, now + 2 * 86400_000), null);
+
+  // The log says why a request was refused.
+  const problem = (data: string, t = token, at = now) => {
+    const r = checkInitData(data, t, at);
+    return 'problem' in r ? r.problem : '';
+  };
+  assert.match(problem(''), /^no Telegram data/);
+  assert.match(problem('user=x&auth_date=1'), /^no signature/);
+  assert.match(problem(initData, 'other:TOKEN'), /^bad signature/);
+  assert.match(problem(initData, token, now + 2 * 86400_000), /^<a href="tg:\/\/user\?id=42">Ali<\/a> <code>42<\/code>: app opened 48 h ago/);
 });
